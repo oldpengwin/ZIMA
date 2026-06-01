@@ -1,0 +1,21 @@
+{
+  "name": "zima-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zima — Discord onboarding bot with Supabase profiles and role grants",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "register-commands": "node src/register-commands.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7"
+  }
+}

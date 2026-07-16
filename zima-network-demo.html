@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zima — Network Demo</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111823; --card:#151d29; --card2:#1b2532;
+    --border:#243040; --border2:#31445a;
+    --text:#e8eef5; --muted:#8ea0b4; --dim:#5f7186;
+    --accent:#5BC2E7; --accent-dim:#2b6d84; --accent-ghost:rgba(91,194,231,.12);
+    --good:#54d6a6; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);
+    background-image:radial-gradient(1200px 600px at 70% -10%,rgba(91,194,231,.08),transparent 60%);
+    min-height:100vh;font-size:15px;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 22px 80px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .glyph{width:34px;height:34px;border-radius:50%;border:1px solid var(--accent-dim);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:18px;
+    box-shadow:0 0 22px rgba(91,194,231,.35) inset}
+  .brand h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.3px}
+  .brand .sub{color:var(--dim);font-size:12.5px;margin-top:1px}
+  .steps{display:flex;gap:8px;margin:18px 0 20px;flex-wrap:wrap}
+  .step{font-size:12px;color:var(--dim);border:1px solid var(--border);border-radius:20px;
+    padding:5px 12px;display:flex;align-items:center;gap:6px}
+  .step.on{color:var(--accent);border-color:var(--accent-dim);background:var(--accent-ghost)}
+  .step .n{width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text);
+    display:inline-flex;align-items:center;justify-content:center;font-size:10px}
+  .step.on .n{background:var(--accent);color:#00171f}
+
+  /* CLI */
+  .cli{background:#060a0f;border:1px solid var(--border);border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .cli-bar{display:flex;align-items:center;gap:7px;padding:11px 14px;border-bottom:1px solid var(--border);
+    background:#0b111a}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+  .cli-bar .title{margin-left:8px;color:var(--dim);font-family:var(--mono);font-size:12px}
+  .term{padding:18px 18px 8px;font-family:var(--mono);font-size:13.5px;min-height:300px;
+    max-height:420px;overflow-y:auto;line-height:1.7}
+  .term .sys{color:var(--dim)}
+  .term .q{color:var(--accent)}
+  .term .a{color:var(--text)}
+  .term .a::before{content:"› ";color:var(--good)}
+  .term .ok{color:var(--good)}
+  .prompt{display:flex;align-items:center;gap:10px;padding:12px 18px 18px;border-top:1px solid var(--border);
+    background:#0b111a;font-family:var(--mono)}
+  .prompt .label{color:var(--accent);font-size:13.5px;white-space:nowrap}
+  .prompt input{flex:1;background:transparent;border:none;outline:none;color:var(--text);
+    font-family:var(--mono);font-size:13.5px;caret-color:var(--accent)}
+  .prompt .hint{color:var(--dim);font-size:11px}
+  .skip{margin-top:12px;color:var(--dim);font-size:12.5px}
+  .skip a{cursor:pointer;border-bottom:1px dotted var(--accent-dim)}
+
+  /* Search */
+  .hidden{display:none !important}
+  .searchbar{display:flex;gap:10px;align-items:center;background:var(--panel);
+    border:1px solid var(--border2);border-radius:14px;padding:8px 8px 8px 16px;margin-bottom:6px}
+  .searchbar i{color:var(--accent)}
+  .searchbar input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:15.5px}
+  .searchbar button{background:var(--accent);color:#00171f;border:none;border-radius:10px;
+    padding:10px 18px;font-weight:600;font-size:14px;cursor:pointer}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 26px}
+  .chips .c{font-size:12.5px;color:var(--muted);border:1px solid var(--border);border-radius:20px;
+    padding:6px 12px;cursor:pointer}
+  .chips .c:hover{border-color:var(--accent-dim);color:var(--accent)}
+  .result-head{display:flex;align-items:baseline;justify-content:space-between;margin:6px 2px 14px}
+  .result-head h2{font-size:16px;font-weight:600;margin:0}
+  .result-head .meta{color:var(--dim);font-size:13px}
+
+  /* Carousel */
+  .carousel-wrap{position:relative}
+  .carousel{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;
+    padding:6px 2px 18px;scroll-behavior:smooth}
+  .carousel::-webkit-scrollbar{height:8px}
+  .carousel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:8px}
+  .nav{position:absolute;top:46%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;
+    background:var(--card2);border:1px solid var(--border2);color:var(--text);font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:5}
+  .nav:hover{border-color:var(--accent);color:var(--accent)}
+  .nav.prev{left:-14px}.nav.next{right:-14px}
+
+  .card{position:relative;flex:0 0 250px;height:360px;background:var(--card);
+    border:1px solid var(--border);border-radius:18px;overflow:hidden;scroll-snap-align:start;
+    transition:transform .2s,border-color .2s;cursor:pointer}
+  .card:hover{transform:translateY(-4px);border-color:var(--accent-dim)}
+  .rank{position:absolute;top:12px;left:12px;z-index:3;background:rgba(6,10,15,.7);
+    border:1px solid var(--border2);color:var(--accent);font-size:11px;font-weight:600;
+    padding:3px 9px;border-radius:20px;font-family:var(--mono)}
+  .match{position:absolute;top:12px;right:12px;z-index:3;background:var(--accent);color:#00171f;
+    font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;font-family:var(--mono)}
+  .photo{height:180px;width:100%;object-fit:cover;background:var(--card2);display:block}
+  .photo.fallback{display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:600;
+    color:var(--accent);background:linear-gradient(160deg,#163a49,#0d2029)}
+  .cbody{padding:14px 16px}
+  .cbody .name{font-size:16px;font-weight:600}
+  .cbody .role{color:var(--accent);font-size:12.5px;margin-top:1px}
+  .cbody .loc{color:var(--muted);font-size:12.5px;margin-top:7px;display:flex;align-items:center;gap:5px}
+  .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+  .tag{font-size:11px;padding:3px 8px;border-radius:14px;background:var(--card2);color:var(--muted);
+    border:1px solid var(--border)}
+  .tag.hit{background:var(--accent-ghost);color:var(--accent);border-color:var(--accent-dim)}
+
+  .expand{position:absolute;left:0;right:0;bottom:0;top:0;background:linear-gradient(180deg,rgba(10,14,19,.86),rgba(8,12,17,.98));
+    backdrop-filter:blur(3px);transform:translateY(101%);transition:transform .28s ease;
+    padding:16px;display:flex;flex-direction:column;overflow-y:auto}
+  .card:hover .expand{transform:translateY(0)}
+  .expand h4{margin:0 0 2px;font-size:16px;font-weight:600}
+  .expand .er{color:var(--accent);font-size:12.5px;margin-bottom:12px}
+  .expand .lbl{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+    margin:10px 0 3px}
+  .expand .val{font-size:13px;color:var(--text);line-height:1.5}
+  .stat{display:flex;align-items:center;gap:8px;color:var(--good);font-size:13px;margin-top:2px}
+  .msg-btn{margin-top:auto;background:var(--accent);color:#00171f;border:none;border-radius:10px;
+    padding:11px;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:7px}
+  .msg-btn:hover{filter:brightness(1.08)}
+  .empty{color:var(--muted);text-align:center;padding:50px 20px;border:1px dashed var(--border);border-radius:14px}
+
+  /* DM modal */
+  .overlay{position:fixed;inset:0;background:rgba(4,7,11,.7);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;z-index:40;padding:20px}
+  .dm{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--border2);
+    border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .dm-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .dm-head img,.dm-head .fb{width:42px;height:42px;border-radius:50%;object-fit:cover}
+  .dm-head .fb{display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#163a49,#0d2029);
+    color:var(--accent);font-weight:600}
+  .dm-head .nm{font-weight:600;font-size:15px}
+  .dm-head .em{color:var(--muted);font-size:12.5px;display:flex;align-items:center;gap:5px}
+  .dm-head .x{margin-left:auto;color:var(--dim);cursor:pointer;font-size:20px;padding:4px}
+  .dm-body{padding:16px;min-height:150px;background:#0c121b;display:flex;flex-direction:column;gap:10px}
+  .bubble{max-width:80%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.45}
+  .bubble.them{background:var(--card2);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
+  .bubble.me{background:var(--accent);color:#00171f;align-self:flex-end;border-bottom-right-radius:4px}
+  .dm-compose{padding:12px 14px;border-top:1px solid var(--border);background:var(--panel)}
+  .dm-compose textarea{width:100%;background:#0c121b;border:1px solid var(--border);border-radius:10px;
+    color:var(--text);font-family:var(--sans);font-size:14px;padding:10px;resize:vertical;min-height:70px;outline:none}
+  .dm-compose textarea:focus{border-color:var(--accent-dim)}
+  .dm-actions{display:flex;gap:10px;margin-top:10px}
+  .dm-actions button{flex:1;border-radius:10px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:7px}
+  .send{background:var(--accent);color:#00171f;border:none}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--border2)}
+  .foot{margin-top:36px;color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <div class="glyph">⊹</div>
+    <div>
+      <h1>Zima <span style="color:var(--dim);font-weight:400">· network</span></h1>
+      <div class="sub">Register once. Find the builders who move your work forward.</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step on" id="st1"><span class="n">1</span> Register profile</div>
+    <div class="step" id="st2"><span class="n">2</span> Search the network</div>
+    <div class="step" id="st3"><span class="n">3</span> Connect</div>
+  </div>
+
+  <!-- STEP 1: CLI intake -->
+  <section id="view-intake">
+    <div class="cli">
+      <div class="cli-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="title">zima ~ register</span></div>
+      <div class="term" id="term"></div>
+      <div class="prompt">
+        <span class="label" id="p-label">name ›</span>
+        <input id="p-input" autocomplete="off" spellcheck="false" placeholder="type your answer, press Enter">
+        <span class="hint" id="p-hint">1 / 8</span>
+      </div>
+    </div>
+    <div class="skip">Just here to test the search? <a id="skip-link">Skip with a sample profile →</a></div>
+  </section>
+
+  <!-- STEP 2+3: network -->
+  <section id="view-network" class="hidden">
+    <div class="searchbar">
+      <i class="ti ti-search"></i>
+      <input id="q" placeholder="Try: hydroponics builder in Montreal">
+      <button id="go">Search</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="result-head hidden" id="rhead">
+      <h2 id="rtitle"></h2><span class="meta" id="rmeta"></span>
+    </div>
+    <div class="carousel-wrap" id="cwrap"></div>
+  </section>
+
+  <div class="foot">
+    ⊹ &nbsp;Demo build · mock data, in-browser matching. Avatars generated per person.<br>
+    Connect uses your real email client. Wiring to live Zima profiles + in-app chat is the deploy step.
+  </div>
+</div>
+
+<script>
+const PEOPLE = [
+  {id:1,name:"Amara Okafor",age:31,role:"Hydroponics systems engineer",city:"Montreal, QC",
+   skills:["Hydroponics","NFT systems","Nutrient dosing","IoT sensors","Controlled-environment ag"],
+   building:"Modular NFT grow towers for restaurant kitchens",
+   stat:"4 commercial installs · supplies 18 restaurants",
+   accolade:"McGill Dobson Cup finalist, 2024",
+   looking:"Controls engineers, chefs, a first commercial landlord",
+   email:"amara.okafor@example.com"},
+  {id:2,name:"Julien Tremblay",age:38,role:"Vertical farm operator",city:"Montreal, QC",
+   skills:["Vertical farming","Controlled-environment ag","LED spectra","Cold-chain logistics"],
+   building:"Converting a Griffintown warehouse into a leafy-greens vertical farm",
+   stat:"1,200 sq ft under cultivation · 9 crop cycles / year",
+   accolade:"Featured in La Presse urban-ag series",
+   looking:"Automation engineers, growth capital",
+   email:"julien.tremblay@example.com"},
+  {id:3,name:"Priya Raghunathan",age:29,role:"Aquaponics designer",city:"Laval, QC",
+   skills:["Aquaponics","Hydroponics","Biofiltration","Fish husbandry","Permaculture"],
+   building:"A community aquaponics greenhouse feeding a local food bank",
+   stat:"2 pilot systems · 400 kg fish + greens / season",
+   accolade:"Concordia District 3 incubator alum",
+   looking:"Greenhouse space, volunteers, a plumbing partner",
+   email:"priya.r@example.com"},
+  {id:4,name:"Sofia Marchetti",age:34,role:"Alt-farming founder",city:"Montreal, QC",
+   skills:["Alternative farming","Mushroom cultivation","Mycology","Fermentation","Circular packaging"],
+   building:"Gourmet mushroom farm + mycelium packaging spun off from the waste stream",
+   stat:"300 kg / month · zero-landfill substrate loop",
+   accolade:"SDTC clean-tech micro-grant recipient",
+   looking:"Retail buyers, a food scientist, packaging pilots",
+   email:"sofia.marchetti@example.com"},
+  {id:5,name:"Daniel Cohen",age:42,role:"CEA climate consultant",city:"Montreal, QC",
+   skills:["Controlled-environment ag","Vertical farming","HVAC for grow rooms","Climate control","Energy modelling"],
+   building:"An open playbook for retrofitting grow rooms to cut energy 30%",
+   stat:"22 farms advised across QC + ON",
+   accolade:"Ex-Aerofarms systems lead",
+   looking:"Farm operators to pilot the retrofit playbook",
+   email:"daniel.cohen@example.com"},
+  {id:6,name:"Yuki Tanaka",age:27,role:"Rooftop / urban farmer",city:"Montreal, QC",
+   skills:["Rooftop farming","Urban agriculture","Alternative farming","Soil health","Community organizing"],
+   building:"A rooftop-farm network on top of grocery stores",
+   stat:"3 rooftops live · 6 tons produce / year",
+   accolade:"Lufa Farms alum",
+   looking:"Grocery partners, a hydroponics collaborator for winter yield",
+   email:"yuki.tanaka@example.com"},
+  {id:7,name:"Fatima Al-Sayed",age:33,role:"Regenerative ag scientist",city:"Brossard, QC",
+   skills:["Regenerative agriculture","Alternative farming","Soil microbiology","Cover crops","Carbon measurement"],
+   building:"A soil-microbiome test kit for small regen farms",
+   stat:"Trials on 14 farms · 1,800 acres measured",
+   accolade:"PhD, plant-soil systems, McGill",
+   looking:"Hardware co-founder, first paying farms",
+   email:"fatima.alsayed@example.com"},
+  {id:8,name:"Marcus Devereux",age:36,role:"AgTech hardware builder",city:"Montreal, QC",
+   skills:["IoT sensors","Automation","Hydroponics","Embedded systems","Data dashboards"],
+   building:"Plug-and-play sensor + dosing controller for small hydro setups",
+   stat:"60 units in the field · open firmware",
+   accolade:"2x hardware startup exits",
+   looking:"Pilot growers, a firmware contributor",
+   email:"marcus.devereux@example.com"},
+  {id:9,name:"Grace Mensah",age:39,role:"Vertical-farming investor",city:"Toronto, ON",
+   skills:["Vertical farming","AgTech investing","Scaling operations","Unit economics"],
+   building:"A $12M fund backing controlled-environment ag in Canada",
+   stat:"9 portfolio farms · 2 in Quebec",
+   accolade:"Ex-operator, exited a CEA startup",
+   looking:"Seed-stage CEA founders anywhere in Canada",
+   email:"grace.mensah@example.com"},
+  {id:10,name:"Liam Novak",age:30,role:"Brand + film director",city:"Montreal, QC",
+   skills:["Branding","Video direction","Motion design","Go-to-market"],
+   building:"A studio helping climate startups tell their story",
+   stat:"40+ launch films · 5M organic views",
+   accolade:"Cannes Young Lions shortlist",
+   looking:"Mission-driven founders who need a brand",
+   email:"liam.novak@example.com"},
+];
+
+const STOP = new Set(["a","an","the","in","of","for","and","or","to","with","builder","builders",
+  "someone","people","person","who","that","is","are","looking","near","around","find","me"]);
+
+let USER = null;
+
+/* ---------- CLI intake ---------- */
+const QUESTIONS = [
+  {key:"name",   label:"name ›",       q:"What should the network call you?"},
+  {key:"age",    label:"age ›",        q:"How old are you?"},
+  {key:"city",   label:"location ›",   q:"Where are you based? (city, region)"},
+  {key:"skills", label:"skills ›",     q:"Your skills? (comma-separated)"},
+  {key:"accolade",label:"accolades ›", q:"An accolade you're proud of?"},
+  {key:"building",label:"building ›",  q:"What are you building right now?"},
+  {key:"stat",   label:"a proud stat ›",q:"One number you'd be proud to share?"},
+  {key:"looking",label:"looking for ›",q:"Who do you want to meet?"},
+];
+let qi = 0;
+const term = document.getElementById('term');
+const pInput = document.getElementById('p-input');
+const pLabel = document.getElementById('p-label');
+const pHint = document.getElementById('p-hint');
+USER = {};
+
+function line(cls, html){ const d=document.createElement('div'); if(cls)d.className=cls; d.innerHTML=html; term.appendChild(d); term.scrollTop=term.scrollHeight; }
+function askQuestion(){
+  const cur=QUESTIONS[qi];
+  line('q', "⊹ "+cur.q);
+  pLabel.textContent=cur.label;
+  pHint.textContent=(qi+1)+" / "+QUESTIONS.length;
+  pInput.value=""; pInput.focus();
+}
+function startCli(){
+  line('sys','⊹ Zima online. Registering you into the network.');
+  line('sys','&nbsp;');
+  askQuestion();
+}
+pInput.addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  const val=pInput.value.trim(); if(!val) return;
+  const cur=QUESTIONS[qi];
+  line('a', val.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])));
+  USER[cur.key]=val;
+  qi++;
+  if(qi<QUESTIONS.length){ askQuestion(); }
+  else{
+    USER.skills = (USER.skills||"").split(',').map(s=>s.trim()).filter(Boolean);
+    line('sys','&nbsp;');
+    line('ok','⊹ Profile registered — '+USER.name+'. You are now in the network.');
+    document.querySelector('.prompt').style.opacity=.4;
+    pInput.disabled=true; pLabel.textContent='done ›';
+    setTimeout(gotoNetwork, 650);
+  }
+});
+document.getElementById('skip-link').addEventListener('click',()=>{
+  USER={name:"Mawuli",age:"33",city:"Montreal, QC",
+    skills:["Brand strategy","Video direction","Systems design","Growth"],
+    accolade:"~10M organic views generated",
+    building:"A media system for regenerative builders",
+    stat:"80,000+ email leads generated",
+    looking:"Hydroponics + vertical-farming builders in Montreal"};
+  gotoNetwork();
+});
+
+/* ---------- Network ---------- */
+function gotoNetwork(){
+  document.getElementById('view-intake').classList.add('hidden');
+  document.getElementById('view-network').classList.remove('hidden');
+  document.getElementById('st1').classList.remove('on');
+  document.getElementById('st2').classList.add('on');
+  const chips=document.getElementById('chips');
+  const suggested=["hydroponics builder in Montreal","vertical farming","aquaponics","IoT sensors","regenerative agriculture","mushroom / alt-farming"];
+  chips.innerHTML=suggested.map(s=>`<span class="c" data-q="${s}">${s}</span>`).join('');
+  chips.querySelectorAll('.c').forEach(c=>c.addEventListener('click',()=>{ document.getElementById('q').value=c.dataset.q; runSearch(); }));
+  document.getElementById('q').value="hydroponics builder in Montreal";
+}
+document.getElementById('go').addEventListener('click',runSearch);
+document.getElementById('q').addEventListener('keydown',e=>{ if(e.key==='Enter') runSearch(); });
+
+const CITY_WORDS=["montreal","laval","brossard","toronto","quebec","qc","on","ontario","canada"];
+function tokenize(str){ return str.toLowerCase().replace(/[^a-z0-9\s\/]/g,' ').split(/[\s\/]+/).filter(t=>t&&!STOP.has(t)); }
+
+function scorePerson(tokens, queryCities, p){
+  const hay=(p.skills.join(' ')+' '+p.role+' '+p.building).toLowerCase();
+  let score=0; const hitSkills=new Set();
+  tokens.forEach(t=>{
+    if(CITY_WORDS.includes(t)) return;
+    let matched=false;
+    p.skills.forEach(sk=>{ if(sk.toLowerCase().includes(t)){ score+=3; hitSkills.add(sk); matched=true; } });
+    if(!matched && hay.includes(t)){ score+=1.5; }
+  });
+  // location weighting
+  const pcity=p.city.toLowerCase();
+  let locBonus=0, sameCity=false;
+  if(queryCities.length){
+    if(queryCities.some(c=>pcity.includes(c))){ locBonus=3; sameCity=true; }
+    else locBonus=-1.2; // out of area gets pushed down but not excluded
+  }
+  return {score:score+locBonus, base:score, hitSkills, sameCity};
+}
+
+function runSearch(){
+  const raw=document.getElementById('q').value.trim();
+  if(!raw) return;
+  const tokens=tokenize(raw);
+  const queryCities=tokens.filter(t=>CITY_WORDS.includes(t));
+  const scored=PEOPLE.map(p=>({p,...scorePerson(tokens,queryCities,p)}))
+    .filter(x=>x.base>0)
+    .sort((a,b)=>b.score-a.score);
+  const top=scored.slice(0,5);
+  const maxScore=top.length?Math.max(...top.map(t=>t.score)):1;
+
+  const rhead=document.getElementById('rhead');
+  rhead.classList.remove('hidden');
+  document.getElementById('rtitle').textContent=top.length?`Top ${top.length} for “${raw}”`:'No matches yet';
+  document.getElementById('rmeta').textContent=top.length?`${scored.length} builders in range · hover a card for the full profile`:'';
+
+  const cwrap=document.getElementById('cwrap');
+  if(!top.length){ cwrap.innerHTML=`<div class="empty">No one in the network matches that yet.<br>Try “vertical farming”, “aquaponics”, or “IoT sensors”.</div>`; return; }
+
+  const cards=top.map((x,i)=>{
+    const p=x.p;
+    const pct=Math.max(38, Math.round(70 + (x.score/maxScore)*30) - (x.sameCity?0:14));
+    const pctClamped=Math.min(99,pct);
+    const initials=p.name.split(' ').map(n=>n[0]).slice(0,2).join('');
+    const seed=encodeURIComponent(p.name);
+    const img=`https://api.dicebear.com/9.x/notionists/svg?seed=${seed}&backgroundColor=1b2532,16303a,13212c&radius=0`;
+    const tags=p.skills.map(sk=>`<span class="tag ${x.hitSkills.has(sk)?'hit':''}">${sk}</span>`).join('');
+    const youShare = USER && USER.skills ? p.skills.filter(sk=>USER.skills.some(u=>sk.toLowerCase().includes(u.toLowerCase())||u.toLowerCase().includes(sk.toLowerCase()))) : [];
+    return `
+    <div class="card" data-id="${p.id}">
+      <div class="rank">#${i+1}</div>
+      <div class="match">${pctClamped}% match</div>
+      <img class="photo" src="${img}" alt="${p.name}"
+           onerror="this.outerHTML='<div class=&quot;photo fallback&quot;>${initials}</div>'">
+      <div class="cbody">
+        <div class="name">${p.name} <span style="color:var(--dim);font-weight:400;font-size:13px">· ${p.age}</span></div>
+        <div class="role">${p.role}</div>
+        <div class="loc"><i class="ti ti-map-pin"></i> ${p.city}</div>
+        <div class="tagrow">${p.skills.slice(0,3).map(sk=>`<span class="tag ${x.hitSkills.has(sk)?'hit':''}">${sk}</span>`).join('')}</div>
+      </div>
+      <div class="expand">
+        <h4>${p.name}</h4><div class="er">${p.role} · ${p.city}</div>
+        <div class="lbl">Matches your search</div><div class="tagrow">${tags}</div>
+        ${youShare.length?`<div class="lbl">You share</div><div class="val" style="color:var(--accent)">${youShare.join(' · ')}</div>`:''}
+        <div class="lbl">Building now</div><div class="val">${p.building}</div>
+        <div class="lbl">Proud stat</div><div class="stat"><i class="ti ti-trophy"></i> ${p.stat}</div>
+        <div class="lbl">Accolade</div><div class="val">${p.accolade}</div>
+        <div class="lbl">Looking for</div><div class="val">${p.looking}</div>
+        <button class="msg-btn" data-id="${p.id}"><i class="ti ti-send"></i> Message ${p.name.split(' ')[0]}</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  cwrap.innerHTML=`
+    <button class="nav prev" aria-label="Previous">‹</button>
+    <div class="carousel" id="carousel">${cards}</div>
+    <button class="nav next" aria-label="Next">›</button>`;
+
+  const car=document.getElementById('carousel');
+  cwrap.querySelector('.prev').addEventListener('click',()=>car.scrollBy({left:-268,behavior:'smooth'}));
+  cwrap.querySelector('.next').addEventListener('click',()=>car.scrollBy({left:268,behavior:'smooth'}));
+  cwrap.querySelectorAll('.msg-btn').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); openDM(+b.dataset.id); }));
+
+  document.getElementById('st3').classList.add('on');
+}
+
+/* ---------- DM / email connect ---------- */
+function openDM(id){
+  const p=PEOPLE.find(x=>x.id===id);
+  const initials=p.name.split(' ').map(n=>n[0]).slice(0,2).join('');
+  const seed=encodeURIComponent(p.name);
+  const img=`https://api.dicebear.com/9.x/notionists/svg?seed=${seed}&backgroundColor=1b2532,16303a,13212c&radius=0`;
+  const first=p.name.split(' ')[0];
+  const me = USER && USER.name ? USER.name : "a builder";
+  const draft=`Hi ${first},\n\nI'm ${me} — I found you through the Zima network. I'm drawn to what you're building (${p.building.toLowerCase()}), and I think there's a real reason for us to talk.\n\nOpen to a quick call this week?\n\n— ${me}`;
+
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.innerHTML=`
+    <div class="dm">
+      <div class="dm-head">
+        <img src="${img}" alt="${p.name}" onerror="this.outerHTML='<div class=&quot;fb&quot;>${initials}</div>'">
+        <div>
+          <div class="nm">${p.name}</div>
+          <div class="em"><i class="ti ti-mail"></i> ${p.email}</div>
+        </div>
+        <div class="x" id="dm-x">×</div>
+      </div>
+      <div class="dm-body" id="dm-body">
+        <div class="bubble them">Hey — thanks for reaching out through Zima. What are you working on?</div>
+      </div>
+      <div class="dm-compose">
+        <textarea id="dm-text">${draft}</textarea>
+        <div class="dm-actions">
+          <button class="ghost" id="dm-preview"><i class="ti ti-message"></i> Send in chat</button>
+          <button class="send" id="dm-email"><i class="ti ti-mail-forward"></i> Send via email</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{ if(e.target===ov) ov.remove(); });
+  ov.querySelector('#dm-x').addEventListener('click',()=>ov.remove());
+  ov.querySelector('#dm-preview').addEventListener('click',()=>{
+    const t=ov.querySelector('#dm-text').value.trim(); if(!t) return;
+    const b=document.createElement('div'); b.className='bubble me'; b.textContent=t;
+    ov.querySelector('#dm-body').appendChild(b);
+    const body=ov.querySelector('#dm-body'); body.scrollTop=body.scrollHeight;
+  });
+  ov.querySelector('#dm-email').addEventListener('click',()=>{
+    const t=ov.querySelector('#dm-text').value;
+    const subject=encodeURIComponent(`${me} × ${first} — via Zima`);
+    const body=encodeURIComponent(t);
+    window.location.href=`mailto:${p.email}?subject=${subject}&body=${body}`;
+  });
+}
+
+startCli();
+</script>
+</body>
+</html>

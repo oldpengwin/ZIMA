@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zima 2 — ask the network</title>
+<style>
+  :root{
+    --bg:#000; --panel:#141414; --card:#191919; --card2:#282828;
+    --border:#282828; --border2:#3f3f3f;
+    --text:#fff; --muted:#c0c0c0; --dim:#7f7f7f;
+    --accent:#19d0e8; --accent-dim:#0e5d66; --accent-ghost:rgba(25,208,232,.12);
+    --good:#54d6a6; --heat:#ff7a2f; --beta:#b98cff;
+    --serif:'Instrument Serif',Georgia,serif;
+    --mono:'DM Mono',ui-monospace,Menlo,monospace;
+    --sans:'Geist',-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}
+  ::selection{background:var(--accent-ghost)}
+
+  .app{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}
+
+  /* ── Reddit-style sidebar ── */
+  .side{border-right:1px solid var(--border);padding:18px 12px 30px;position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin}
+  .logo{display:flex;align-items:center;gap:10px;padding:4px 10px 16px}
+  .logo .glyph{width:30px;height:30px;border-radius:50%;border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);box-shadow:0 0 16px rgba(25,208,232,.35) inset}
+  .logo b{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;letter-spacing:-.02em}
+  .logo small{color:var(--dim);font-family:var(--mono);font-size:10px;margin-left:2px}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;color:var(--muted);font-size:14px;cursor:pointer}
+  .nav-item:hover{background:var(--card)}
+  .nav-item.on{background:var(--card2);color:var(--text)}
+  .nav-item i{font-size:17px;width:20px;text-align:center}
+  .side hr{border:none;border-top:1px solid var(--border);margin:14px 6px}
+  .sec{margin-top:4px}
+  .sec-h{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;user-select:none}
+  .sec-h i{transition:transform .2s}
+  .sec.closed .sec-h i{transform:rotate(180deg)}
+  .sec.closed .sec-body{display:none}
+  .row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:10px;color:var(--muted);font-size:13.5px;cursor:pointer;min-width:0}
+  .row:hover{background:var(--card)}
+  .row .dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:11px;font-weight:500;color:#001518}
+  .row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .tag{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--dim);flex-shrink:0}
+  .row .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .row.res i{width:20px;text-align:center;color:var(--dim)}
+  .newpill{font-size:9px;font-weight:700;background:var(--heat);color:#2a1200;border-radius:8px;padding:1px 6px;margin-left:auto;flex-shrink:0}
+
+  /* ── main / chat ── */
+  .main{display:flex;flex-direction:column;height:100vh;position:sticky;top:0}
+  .m-head{display:flex;align-items:center;gap:12px;padding:16px 26px;border-bottom:1px solid var(--border)}
+  .m-head .t{font-family:var(--serif);font-style:italic;font-size:24px;letter-spacing:-.02em}
+  .m-head .s{color:var(--dim);font-family:var(--mono);font-size:11.5px;margin-top:2px}
+  .m-head .live{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12px;font-family:var(--mono)}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--good);animation:pl 1.6s infinite}
+  @keyframes pl{0%{box-shadow:0 0 0 0 rgba(84,214,166,.5)}70%{box-shadow:0 0 0 8px rgba(84,214,166,0)}100%{box-shadow:0 0 0 0 rgba(84,214,166,0)}}
+
+  .chat{flex:1;overflow-y:auto;padding:26px clamp(16px,4vw,60px);display:flex;flex-direction:column;gap:22px;scroll-behavior:smooth}
+  .msg .who{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:6px;letter-spacing:.06em}
+  .msg.you .who{color:var(--muted)}
+  .msg .body{max-width:640px;font-size:15px;line-height:1.65;color:var(--text)}
+  .msg.you .body{color:var(--muted)}
+  .msg.zima .who{color:var(--accent)}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .pcard{width:190px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px;cursor:pointer;transition:border-color .2s,transform .2s}
+  .pcard:hover{border-color:var(--accent-dim);transform:translateY(-2px)}
+  .pcard .av{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:15px;color:var(--accent);background:linear-gradient(150deg,#0e3a42,#0a1a1e);margin-bottom:9px}
+  .pcard .nm{font-size:14px;font-weight:600}
+  .pcard .rl{font-size:11.5px;color:var(--accent);margin-top:1px}
+  .pcard.org .rl{color:var(--heat)}
+  .pcard .ds{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pcard .meta{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:8px;display:flex;gap:6px;align-items:center}
+  .pcard .meta .b{color:var(--beta)}
+  .suggest{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .sug{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--border2);border-radius:100000px;padding:7px 14px;cursor:pointer}
+  .sug:hover{color:var(--accent);border-color:var(--accent-dim)}
+  .typing{display:inline-flex;gap:5px;padding:4px 0}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--dim);animation:tp 1s infinite}
+  .typing i:nth-child(2){animation-delay:.16s}.typing i:nth-child(3){animation-delay:.32s}
+  @keyframes tp{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+
+  .composer{padding:16px clamp(16px,4vw,60px) 22px;border-top:1px solid var(--border)}
+  .c-line{display:flex;align-items:center;gap:12px;background:rgba(22,25,28,.6);border:1px solid rgba(255,255,255,.14);
+    border-radius:100000px;padding:13px 20px;backdrop-filter:blur(16px)}
+  .c-line .pfx{color:var(--accent);font-family:var(--mono)}
+  .c-line input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:14.5px;caret-color:var(--accent)}
+  .c-line .hint{color:var(--dim);font-family:var(--mono);font-size:11px}
+
+  /* ── profile panel ── */
+  .panel{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);z-index:60;background:var(--panel);
+    border-left:1px solid var(--border2);transform:translateX(103%);transition:transform .3s cubic-bezier(.5,1,.89,1);
+    display:flex;flex-direction:column;box-shadow:-28px 0 70px rgba(0,0,0,.6)}
+  .panel.open{transform:none}
+  .p-head{display:flex;gap:12px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border)}
+  .p-head .av{width:52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;color:var(--accent);background:linear-gradient(150deg,#0e3a42,#0a1a1e)}
+  .p-head .x{margin-left:auto;color:var(--dim);cursor:pointer;font-size:23px;line-height:1}
+  .p-btns{display:flex;gap:8px;padding:12px 18px 0}
+  .p-btn{flex:1;border:1px solid var(--border2);background:var(--card);color:var(--text);border-radius:100000px;padding:9px;font-size:12.5px;cursor:pointer;font-family:var(--mono)}
+  .p-btn:hover{border-color:var(--accent-dim);color:var(--accent)}
+  .p-body{overflow-y:auto;padding:6px 18px 30px;flex:1}
+  .p-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:16px 0 5px}
+  .p-val{font-size:14px;line-height:1.6;color:var(--text)}
+  .p-val li{margin-bottom:6px}
+  .p-tldr{background:var(--accent-ghost);border-left:3px solid var(--accent-dim);border-radius:0 10px 10px 0;padding:11px 14px;font-size:14px;line-height:1.55}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chips span{font-size:11px;font-family:var(--mono);padding:4px 9px;border-radius:100000px;background:var(--card2);color:var(--muted);border:1px solid var(--border)}
+  .lk{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-family:var(--mono);background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;margin:3px 4px 0 0}
+
+  @media(max-width:860px){.app{grid-template-columns:1fr}.side{display:none}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ SIDEBAR (reddit-style) ══ -->
+  <aside class="side">
+    <div class="logo"><div class="glyph">⊹</div><b>Zima&nbsp;2</b><small>beta</small></div>
+
+    <div class="nav-item on" data-nav="home"><i class="ti ti-home"></i> Home</div>
+    <div class="nav-item" data-nav="popular"><i class="ti ti-trending-up"></i> Popular</div>
+    <div class="nav-item" data-nav="explore"><i class="ti ti-compass"></i> Explore</div>
+    <div class="nav-item" data-nav="join"><i class="ti ti-plus"></i> Add your profile</div>
+    <hr>
+
+    <div class="sec" id="sec-week">
+      <div class="sec-h">Fresh · this week <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body" id="list-week"></div>
+    </div>
+    <hr>
+    <div class="sec" id="sec-month">
+      <div class="sec-h">This month <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body" id="list-month"></div>
+    </div>
+    <hr>
+    <div class="sec" id="sec-earlier">
+      <div class="sec-h">Earlier <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body" id="list-earlier"></div>
+    </div>
+    <hr>
+
+    <div class="sec" id="sec-feeds">
+      <div class="sec-h">Saved searches <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body" id="list-feeds">
+        <div class="row" data-q="drone prototypers in China"><i class="ti ti-search" style="width:26px;text-align:center;color:var(--dim)"></i><span class="nm">drone builders · China</span></div>
+        <div class="row" data-q="solar in Mexico"><i class="ti ti-search" style="width:26px;text-align:center;color:var(--dim)"></i><span class="nm">solar · Mexico</span></div>
+      </div>
+    </div>
+    <hr>
+
+    <div class="sec" id="sec-comm">
+      <div class="sec-h">Communities <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body" id="list-comm"></div>
+    </div>
+    <hr>
+
+    <div class="sec" id="sec-res">
+      <div class="sec-h">Resources <i class="ti ti-chevron-up"></i></div>
+      <div class="sec-body">
+        <div class="row res" data-q="__about"><i class="ti ti-info-circle"></i><span class="nm">About Zima</span></div>
+        <div class="row res"><a href="https://github.com/HOPAMINE/ZIMA" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;color:inherit"><i class="ti ti-brand-github"></i><span class="nm">GitHub</span></a></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN CHAT ══ -->
+  <main class="main">
+    <div class="m-head">
+      <div><div class="t">ask the network</div><div class="s">describe who you're looking for — zima finds them</div></div>
+      <div class="live"><span class="pulse"></span> <span id="liveN">12,502</span> builders live</div>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="composer">
+      <div class="c-line">
+        <span class="pfx">⊹</span>
+        <input id="q" placeholder="looking for web3 content creators…" autocomplete="off">
+        <span class="hint">↵</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ PROFILE PANEL ══ -->
+<div class="panel" id="panel">
+  <div class="p-head">
+    <div class="av" id="p-av"></div>
+    <div style="min-width:0"><div style="font-size:19px;font-weight:600" id="p-name"></div>
+      <div style="font-size:12px;color:var(--dim)" id="p-loc"></div></div>
+    <span class="x" id="p-x">×</span>
+  </div>
+  <div class="p-btns">
+    <button class="p-btn" id="p-msg">message</button>
+    <button class="p-btn" id="p-share">share</button>
+  </div>
+  <div class="p-body" id="p-body"></div>
+</div>
+
+<script>
+/* ═══════════ DATA — builders, orgs, projects with time frames ═══════════ */
+const DB=[
+ {k:'b',name:'Wei Zhang',role:'Drone prototyper',loc:'Shenzhen, CN',days:2,
+  tldr:'Wei builds sub-250g mapping drones so smallholder farms can see their fields the way satellites do.',
+  today:['Prototyping AgriDrone Mini v4 — a palm-size field mapper.','Looking for a firmware collaborator to join remotely.'],
+  past:['11 drone prototypes, 3 now in field trials.','Ex-DJI flight-control team, 2 patents.'],
+  wins:['Open flight-controller board adopted by 60+ hobbyist farms.','Field-trial footage hit 2M views.'],
+  looking:['Firmware engineers','Agronomists','Seed funding'],
+  skills:['Drone prototyping','Flight control','PCB design'],beta:'AgriDrone firmware beta · 41/60 testers',
+  email:'wei.zhang@example.com',links:[['Portfolio','https://example.com/wei'],['YouTube','https://youtu.be/aqz-KE-bpKQ']]},
+ {k:'b',name:'Mateo Reyes',role:'Solar panel builder',loc:'Mexico City, MX',days:5,
+  tldr:'Mateo makes rooftop solar cheap enough for the last house on the grid.',
+  today:['Shipping DIY 2-panel starter kits across Mexico City.','Recruiting installer-testers for the kit beta.'],
+  past:['120 rooftops powered.','Built a barrio microgrid pilot serving 40 homes.'],
+  wins:['Kit install time cut to 3 hours.','Featured in a national morning show segment.'],
+  looking:['Apprentice installers','Distribution partners'],
+  skills:['Solar panels','PV installation','Off-grid systems'],beta:'DIY solar kit beta · 28/40 testers',
+  email:'mateo.reyes@example.com',links:[['Portfolio','https://example.com/mateo']]},
+ {k:'o',name:'SkyForge Labs',role:'Drone delivery org',loc:'Shenzhen, CN',days:6,
+  tldr:'SkyForge builds last-mile delivery drones for dense cities — and hires prototypers.',
+  today:['Bench-testing delivery-drone v2 (5kg payload).','Hiring: prototyping intern, test pilot.'],
+  past:['v1 flew 1,100 test deliveries.'],wins:['Flight-certification track record: 0 incidents.'],
+  looking:['Prototyping interns','Test pilots'],skills:['Drones','Avionics','Logistics'],
+  email:'jobs@skyforge.example.com',links:[['Apply','https://example.com/skyforge/apply']]},
+ {k:'b',name:'Nadia Rahman',role:'Wearables product builder',loc:'Toronto, CA',days:9,
+  tldr:'Nadia is making health wearables where the person wearing the device owns the data.',
+  today:['Sleep-ring v2 hardware beta.','Writing an open personal-health API spec.'],
+  past:['2,000-person waitlist built with zero ad spend.'],
+  wins:['Teardown video passed 500k views.'],looking:['Embedded engineers','Beta testers'],
+  skills:['Wearables','Embedded','Product design'],beta:'Sleep-ring beta · 54/75 testers',
+  email:'nadia.r@example.com',links:[['Portfolio','https://example.com/nadia']]},
+ {k:'b',name:'Tushar Menon',role:'Web3 content creator',loc:'Mumbai, IN',days:11,
+  tldr:'Tushar makes web3 make sense — fun, fast videos that pull newcomers into the space.',
+  today:['Creating weekly web3 explainers.','Looking for a creative video editor to join remotely.'],
+  past:['Started his first business at 11.','Ran 10+ small ventures by 17.'],
+  wins:['One tweet cleared 10M views.','Helped a gaming project attract 100k+ users.'],
+  looking:['Video editors','Collaborators','Investors'],
+  skills:['Web3','Short-form video','Community'],email:'tushar@example.com',
+  links:[['Channel','https://example.com/tushar']]},
+ {k:'b',name:'Rahul Iyer',role:'Web3 developer & educator',loc:'Mumbai, IN',days:20,
+  tldr:'Rahul writes tutorials and short videos that walk newcomers into web3, one contract at a time.',
+  today:['Publishing a solidity-from-zero series.','Open to collabs and new opportunities.'],
+  past:['Shipped 3 dapps with 20k combined users.'],wins:['Tutorial series crossed 1M reads.'],
+  looking:['Collaborators','Technical writers'],skills:['Web3','Solidity','Education'],
+  email:'rahul@example.com',links:[['Tutorials','https://example.com/rahul']]},
+ {k:'o',name:'SolMX Collective',role:'Solar training org',loc:'Monterrey, MX',days:16,
+  tldr:'SolMX trains solar installers across northern Mexico — earn while you learn.',
+  today:['Running installer cohort #4 (20 apprentices, 12 rooftops).'],
+  past:['3 cohorts graduated, 78% placed in jobs.'],wins:['Cohort #3 wired 15 rooftops in 6 weeks.'],
+  looking:['Apprentices','Site surveyors','Sponsors'],skills:['Solar','Training','Community'],
+  email:'join@solmx.example.com',links:[['Join','https://example.com/solmx']]},
+ {k:'b',name:'Priya Raghunathan',role:'Aquaponics designer',loc:'Bangalore, IN',days:28,
+  tldr:'Priya designs community aquaponics greenhouses that feed food banks.',
+  today:['Scaling a greenhouse that supplies a local food bank.'],
+  past:['2 systems built · 400kg fish + greens per season.'],wins:['Concordia D3 incubator alum.'],
+  looking:['Greenhouse space','Plumbing partner','Volunteers'],skills:['Aquaponics','Biofiltration','Permaculture'],
+  email:'priya.r@example.com',links:[['Walkthrough','https://example.com/priya']]},
+ {k:'o',name:'GreenLoop',role:'Circular waste org',loc:'São Paulo, BR',days:34,
+  tldr:'GreenLoop turns neighbourhood waste into recycled material with organized cleanup drives.',
+  today:['Pinheiros canal drive: 40 volunteers, 3 tonnes target.'],
+  past:['12 drives run · 9 tonnes recovered.'],wins:['Recovery data adopted by the city.'],
+  looking:['Crew leads','Logistics volunteers'],skills:['Cleanups','Recycling','Organizing'],
+  email:'volunteer@greenloop.example.com',links:[['Volunteer','https://example.com/greenloop']]},
+ {k:'b',name:'Ava Thompson',role:'Solar hardware engineer',loc:'Austin, US',days:45,
+  tldr:'Ava is making microinverters cheap enough for off-grid homes everywhere.',
+  today:['Firmware v3 beta across 60 field units.'],past:['2 hardware startups, 1 exit.'],
+  wins:['Open firmware forked 400+ times.'],looking:['Pilot growers','Firmware contributors'],
+  skills:['Power electronics','PCB design','Firmware'],beta:'Microinverter fw v3 · 34/50 testers',
+  email:'ava.t@example.com',links:[['Teardown','https://example.com/ava']]},
+ {k:'b',name:'Kenji Yamamoto',role:'Farm robotics engineer',loc:'Tokyo, JP',days:60,
+  tldr:'Kenji builds autonomous harvesters for vertical farms.',
+  today:['2 pilot farms running his harvester stack.'],past:['40% labour saved across pilots.'],
+  wins:['Harvest reel at 1.2M views.'],looking:['Vertical farm partners','CV engineers'],
+  skills:['Robotics','Computer vision','Automation'],email:'kenji.y@example.com',
+  links:[['Reel','https://example.com/kenji']]},
+ {k:'o',name:'OpenReef',role:'Ocean restoration org',loc:'Sydney, AU',days:75,
+  tldr:'OpenReef seeds coral nurseries and rebuilds reef with volunteer field science.',
+  today:['Sydney seeding pilot: 500 fragments to outplant.'],past:['Nursery survival rate 87%.'],
+  wins:['Volunteer program waitlisted.'],looking:['Marine interns','Dive volunteers'],
+  skills:['Marine science','Restoration','Field ops'],email:'field@openreef.example.com',
+  links:[['Field program','https://example.com/openreef']]},
+];
+const PALETTE=['#19d0e8','#54d6a6','#f4b740','#b98cff','#ff7a2f','#44ccff'];
+
+/* ═══════════ SIDEBAR ═══════════ */
+function initials(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('');}
+function rowHTML(p,i){
+  const c=PALETTE[i%PALETTE.length];
+  const isNew=p.days<=7;
+  return `<div class="row" data-open="${p.name}">
+    <span class="dot" style="background:${c}">${initials(p.name)}</span>
+    <span class="nm">${p.name}</span>
+    ${isNew?'<span class="newpill">NEW</span>':`<span class="tag">${p.days}d</span>`}</div>`;
+}
+function renderSide(){
+  const wk=DB.filter(p=>p.days<=7),mo=DB.filter(p=>p.days>7&&p.days<=30),ea=DB.filter(p=>p.days>30);
+  document.getElementById('list-week').innerHTML=wk.map(rowHTML).join('');
+  document.getElementById('list-month').innerHTML=mo.map(rowHTML).join('');
+  document.getElementById('list-earlier').innerHTML=ea.map(rowHTML).join('');
+  const b=DB.filter(p=>p.k==='b').length,o=DB.filter(p=>p.k==='o').length,bt=DB.filter(p=>p.beta).length;
+  document.getElementById('list-comm').innerHTML=`
+    <div class="row" data-q="show me builders"><span class="dot" style="background:#19d0e8"><i class="ti ti-user" style="font-size:13px"></i></span><span class="nm">z/builders</span><span class="cnt">${b}</span></div>
+    <div class="row" data-q="show me organizations"><span class="dot" style="background:#ff7a2f"><i class="ti ti-building" style="font-size:13px"></i></span><span class="nm">z/organizations</span><span class="cnt">${o}</span></div>
+    <div class="row" data-q="show me live betas"><span class="dot" style="background:#b98cff"><i class="ti ti-flask" style="font-size:13px"></i></span><span class="nm">z/live-betas</span><span class="cnt">${bt}</span></div>
+    <div class="row" data-q="what's new this week"><span class="dot" style="background:#54d6a6"><i class="ti ti-sparkles" style="font-size:13px"></i></span><span class="nm">z/fresh</span><span class="cnt">${DB.filter(p=>p.days<=7).length}</span></div>`;
+  document.querySelectorAll('.side .row').forEach(r=>r.addEventListener('click',()=>{
+    if(r.dataset.open)return openPanel(r.dataset.open);
+    if(r.dataset.q==='__about')return say("Zima is the network layer for builders — profiles, matchmaking, open builds, and live betas, all searchable from one line. This is Zima 2: ask in plain words, get the right people.");
+    if(r.dataset.q)ask(r.dataset.q);
+  }));
+  document.querySelectorAll('.sec-h').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('closed')));
+}
+renderSide();
+
+/* ═══════════ CHAT ENGINE (sage-style) ═══════════ */
+const chat=document.getElementById('chat'),input=document.getElementById('q');
+function el(html){const d=document.createElement('div');d.innerHTML=html;return d.firstElementChild;}
+function addMsg(who,bodyHTML){
+  const m=el(`<div class="msg ${who}"><div class="who">${who==='you'?'you':'zima'}</div><div class="body">${bodyHTML}</div></div>`);
+  chat.appendChild(m);chat.scrollTop=chat.scrollHeight;return m;
+}
+function say(text,extraHTML=''){
+  const t=el(`<div class="msg zima"><div class="who">zima</div><div class="body"><span class="typing"><i></i><i></i><i></i></span></div></div>`);
+  chat.appendChild(t);chat.scrollTop=chat.scrollHeight;
+  setTimeout(()=>{t.querySelector('.body').innerHTML=text+extraHTML;
+    t.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click',()=>openPanel(c.dataset.n)));
+    t.querySelectorAll('.sug').forEach(s=>s.addEventListener('click',()=>ask(s.textContent)));
+    chat.scrollTop=chat.scrollHeight;},560);
+}
+function cardHTML(p){
+  const meta=[p.loc.split(',')[0], p.days<=7?'new this week':p.days+'d on network'].join(' · ');
+  return `<div class="pcard ${p.k==='o'?'org':''}" data-n="${p.name}">
+    <div class="av">${initials(p.name)}</div>
+    <div class="nm">${p.name}</div><div class="rl">${p.role}</div>
+    <div class="ds">${p.tldr}</div>
+    <div class="meta">${meta}${p.beta?' · <span class="b">BETA</span>':''}</div></div>`;
+}
+function score(p,toks){
+  const hay=[p.name,p.role,p.loc,p.tldr,p.skills.join(' '),(p.looking||[]).join(' ')].join(' ').toLowerCase();
+  let s=0;toks.forEach(t=>{if(p.loc.toLowerCase().includes(t))s+=4;if(p.skills.join(' ').toLowerCase().includes(t))s+=3;if(p.role.toLowerCase().includes(t))s+=2;else if(hay.includes(t))s+=1;});
+  return s;
+}
+const STOP=new Set(['looking','for','a','an','the','in','me','show','find','who','is','are','with','and','of','to','on','builders','builder','people','someone','anyone','new','whats','what\'s']);
+function ask(raw){
+  const q=raw.trim();if(!q)return;
+  addMsg('you',q);input.value='';
+  const lq=q.toLowerCase();
+  if(/^(hi|hey|hello|yo|sup)\b/.test(lq))return say("hey. tell me who you're looking for — a skill, a place, a kind of builder — and i'll pull the right people.",sugHTML());
+  if(lq.includes('beta')){const l=DB.filter(p=>p.beta);return say(`${l.length} live betas are open for testers right now:`,`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  if(lq.includes('organization')||lq.includes('orgs')){const l=DB.filter(p=>p.k==='o');return say("the organizations on the network — each has open roles:",`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  if(lq.includes('this week')||lq.includes('fresh')){const l=DB.filter(p=>p.days<=7);return say("fresh arrivals this week:",`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  if(lq==='show me builders'){const l=DB.filter(p=>p.k==='b').slice(0,6);return say("a slice of the builders online now:",`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  const toks=lq.replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(t=>t.length>1&&!STOP.has(t));
+  const ranked=DB.map(p=>({p,s:score(p,toks)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  if(!ranked.length)return say("nothing solid yet — try a skill plus a place, like <i>“solar installers in Mexico”</i> or <i>“web3 creators in India”</i>.",sugHTML());
+  const top=ranked.slice(0,3).map(x=>x.p);
+  const names=top.map(p=>p.name.split(' ')[0]);
+  const intro=top.length===1
+    ?`found one strong match — ${names[0]}. worth a look:`
+    :`got ${top.length===2?'a couple of':'a few'} folks who might be perfect for you. first up is <b>${names[0]}</b>${top[1]?', then there\'s <b>'+names[1]+'</b>':''}${top[2]?' — and keep an eye on <b>'+names[2]+'</b>':''}. tap a card for the full picture:`;
+  say(intro,`<div class="cards">${top.map(cardHTML).join('')}</div>`);
+}
+function sugHTML(){
+  const s=['web3 content creators','drone prototypers in China','solar in Mexico','show me live betas','what\'s new this week'];
+  return `<div class="suggest">${s.map(x=>`<span class="sug">${x}</span>`).join('')}</div>`;
+}
+input.addEventListener('keydown',e=>{if(e.key==='Enter')ask(input.value);});
+
+/* nav */
+document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>{
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('on'));n.classList.add('on');
+  const k=n.dataset.nav;
+  if(k==='home')say("back home. who are you looking for?",sugHTML());
+  if(k==='popular'){const l=[...DB].sort((a,b)=>(b.wins||[]).length-(a.wins||[]).length).slice(0,3);
+    say("most-connected profiles this month:",`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  if(k==='explore'){const l=[...DB].sort(()=>Math.random()-0.5).slice(0,3);
+    say("three doors you haven't opened yet:",`<div class="cards">${l.map(cardHTML).join('')}</div>`);}
+  if(k==='join')say("profile creation lives in the main Zima globe app for now — this is the discovery side. want me to point you there? <a href='zima-globe.html'>open the globe →</a>");
+}));
+
+/* ═══════════ PROFILE PANEL ═══════════ */
+const panel=document.getElementById('panel');
+let current=null;
+function openPanel(name){
+  const p=DB.find(x=>x.name===name);if(!p)return;current=p;
+  document.getElementById('p-av').textContent=initials(p.name);
+  document.getElementById('p-name').textContent=p.name;
+  document.getElementById('p-loc').textContent=p.role+' · '+p.loc;
+  const B=document.getElementById('p-body');
+  B.innerHTML=`
+    <div class="p-lbl">tldr</div><div class="p-tldr">${p.tldr}</div>
+    <div class="p-lbl">today</div><ul class="p-val" style="margin:0;padding-left:18px">${p.today.map(x=>`<li>${x}</li>`).join('')}</ul>
+    ${p.past?.length?`<div class="p-lbl">past ventures</div><ul class="p-val" style="margin:0;padding-left:18px">${p.past.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}
+    ${p.wins?.length?`<div class="p-lbl">viral success</div><ul class="p-val" style="margin:0;padding-left:18px">${p.wins.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}
+    ${p.beta?`<div class="p-lbl">open beta</div><div class="p-val" style="color:var(--beta)"><i class="ti ti-flask" style="vertical-align:-2px"></i> ${p.beta}</div>`:''}
+    <div class="p-lbl">looking for collaborators</div><div class="chips">${p.looking.map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="p-lbl">skills</div><div class="chips">${p.skills.map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="p-lbl">links</div><div>${p.links.map(l=>`<a class="lk" href="${l[1]}" target="_blank" rel="noopener"><i class="ti ti-arrow-up-right"></i>${l[0]}</a>`).join('')}</div>
+    <div class="p-lbl">on network</div><div class="p-val" style="font-family:var(--mono);font-size:12.5px;color:var(--dim)">${p.days<=7?'joined this week':p.days<=30?'joined this month':'member for '+p.days+' days'}</div>`;
+  panel.classList.add('open');
+}
+document.getElementById('p-x').addEventListener('click',()=>panel.classList.remove('open'));
+document.getElementById('p-msg').addEventListener('click',()=>{if(current)window.location.href='mailto:'+current.email+'?subject='+encodeURIComponent('Hello from Zima 2');});
+document.getElementById('p-share').addEventListener('click',e=>{if(!current)return;const b=e.currentTarget;
+  (navigator.clipboard?navigator.clipboard.writeText(`${current.name} — ${current.role} (${current.loc}) · via Zima 2`):Promise.reject())
+  .then(()=>{b.textContent='copied ✓';setTimeout(()=>b.textContent='share',1400);}).catch(()=>{});});
+
+/* boot */
+say("i'm zima. describe who you're looking for — i'll search the network and hand you the right people.",sugHTML());
+setInterval(()=>{document.getElementById('liveN').textContent=(12502+Math.floor(Math.random()*30)).toLocaleString();},2800);
+</script>
+</body>
+</html>

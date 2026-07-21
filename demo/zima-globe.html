@@ -372,6 +372,37 @@
   .fp-chips span,.fp-chips a{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--border2);border-radius:8px;padding:6px 11px;background:var(--card)}
   .fp-chips a:hover{color:var(--accent);border-color:var(--accent-dim)}
   @media(max-width:860px){.fp-grid{grid-template-columns:1fr;gap:34px}.fp-meta{justify-items:start;text-align:left}.fp-chips{justify-content:flex-start}.fp-name{font-size:clamp(38px,12vw,80px)}}
+  /* ── reddit-style sidebar (from Zima 2) ── */
+  #zside{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:35;border-right:1px solid var(--border);
+    background:rgba(8,8,8,.88);backdrop-filter:blur(12px);overflow-y:auto;padding:16px 12px 90px;scrollbar-width:thin;display:none}
+  @media(min-width:1101px){
+    #zside{display:block}
+    body{padding-left:264px}
+    .topbar{left:264px}
+    #stickyCli{left:calc(50% + 132px)}
+    #dock{left:calc(50% + 132px)}
+  }
+  #zside .logo{display:flex;align-items:center;gap:10px;padding:4px 10px 14px}
+  #zside .logo b{font-family:var(--serif);font-style:italic;font-weight:400;font-size:21px;letter-spacing:-.02em}
+  #zside .logo small{color:var(--dim);font-family:var(--mono);font-size:10px}
+  #zside .nav-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;color:var(--muted);font-size:14px;cursor:pointer}
+  #zside .nav-item:hover{background:var(--card)}
+  #zside .nav-item.on{background:var(--card2);color:var(--text)}
+  #zside .nav-item i{font-size:17px;width:20px;text-align:center}
+  #zside hr{border:none;border-top:1px solid var(--border);margin:13px 6px}
+  #zside .zsec-h{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;user-select:none}
+  #zside .zsec-h i{transition:transform .2s}
+  #zside .zsec.closed .zsec-h i{transform:rotate(180deg)}
+  #zside .zsec.closed .zsec-b{display:none}
+  #zside .zrow{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:10px;color:var(--muted);font-size:13.5px;cursor:pointer;min-width:0}
+  #zside .zrow:hover{background:var(--card)}
+  #zside .zrow .zdot{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:11px;font-weight:500;color:#001518}
+  #zside .zrow .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #zside .zrow .ztag{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--dim);flex-shrink:0}
+  #zside .zrow .zcnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  #zside .znew{font-size:9px;font-weight:700;background:var(--heat);color:#2a1200;border-radius:8px;padding:1px 6px;margin-left:auto;flex-shrink:0}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Geist:wght@400;500&display=swap" rel="stylesheet">
@@ -380,6 +411,35 @@
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 </head>
 <body>
+
+<aside id="zside">
+  <div class="logo"><div class="glyph">⊹</div><b>Zima</b><small>network</small></div>
+  <div class="nav-item on" data-nav="hero"><i class="ti ti-world"></i> Home</div>
+  <div class="nav-item" data-nav="peopleSec"><i class="ti ti-users"></i> Builders &amp; orgs</div>
+  <div class="nav-item" data-nav="buildsSec"><i class="ti ti-flag"></i> Open builds</div>
+  <div class="nav-item" data-nav="resourcesSec"><i class="ti ti-list-details"></i> Directory</div>
+  <div class="nav-item" data-nav="join"><i class="ti ti-plus"></i> Add your profile</div>
+  <hr>
+  <div class="zsec" id="zs-week"><div class="zsec-h">Fresh · this week <i class="ti ti-chevron-up"></i></div><div class="zsec-b" id="zl-week"></div></div>
+  <hr>
+  <div class="zsec" id="zs-month"><div class="zsec-h">This month <i class="ti ti-chevron-up"></i></div><div class="zsec-b" id="zl-month"></div></div>
+  <hr>
+  <div class="zsec" id="zs-earlier"><div class="zsec-h">Earlier <i class="ti ti-chevron-up"></i></div><div class="zsec-b" id="zl-earlier"></div></div>
+  <hr>
+  <div class="zsec" id="zs-saved"><div class="zsec-h">Saved searches <i class="ti ti-chevron-up"></i></div>
+    <div class="zsec-b">
+      <div class="zrow" data-zq="drone prototypers in china"><i class="ti ti-search" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">drone builders · China</span></div>
+      <div class="zrow" data-zq="solar panel builders in mexico"><i class="ti ti-search" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">solar · Mexico</span></div>
+    </div></div>
+  <hr>
+  <div class="zsec" id="zs-comm"><div class="zsec-h">Communities <i class="ti ti-chevron-up"></i></div><div class="zsec-b" id="zl-comm"></div></div>
+  <hr>
+  <div class="zsec" id="zs-res"><div class="zsec-h">Resources <i class="ti ti-chevron-up"></i></div>
+    <div class="zsec-b">
+      <div class="zrow"><a href="zima2.html" style="display:flex;gap:10px;align-items:center;color:inherit"><i class="ti ti-message-circle" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Ask the network (Zima 2)</span></a></div>
+      <div class="zrow"><a href="https://github.com/HOPAMINE/ZIMA" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;color:inherit"><i class="ti ti-brand-github" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">GitHub</span></a></div>
+    </div></div>
+</aside>
 
 <div class="topbar">
   <div class="brand"><div class="glyph">⊹</div><b>Zima</b></div>
@@ -1117,6 +1177,59 @@ function matchCat(p,cat){
   }));
   document.getElementById('pplCatBtn').addEventListener('click',()=>document.getElementById('pplCatMenu').classList.toggle('open'));
 })();
+
+/* ===================== REDDIT-STYLE SIDEBAR (from Zima 2) ===================== */
+const JOINED={'Mateo Reyes':2,'Lucía Fernández':5,'SolMX Collective':6,'Wei Zhang':4,'Lin Hao':12,
+ 'SkyForge Labs':9,'Amara Okafor':16,'Nadia Rahman':20,'Ava Thompson':27,'Kenji Yamamoto':38,
+ 'SolarSpring Collective':44,'GreenLoop':58};
+FEATURED.forEach(p=>{if(p.days==null)p.days=JOINED[p.name]??35;});
+const ZPAL=['#19d0e8','#54d6a6','#f4b740','#b98cff','#ff7a2f','#44ccff'];
+function zrowHTML(p,i){
+  return `<div class="zrow" data-zopen="${p.name}">
+    <span class="zdot" style="background:${ZPAL[i%ZPAL.length]}">${initials(p.name)}</span>
+    <span class="znm">${p.name}</span>
+    ${p.days<=7?'<span class="znew">NEW</span>':`<span class="ztag">${p.days}d</span>`}</div>`;
+}
+function renderZside(){
+  const wk=FEATURED.filter(p=>p.days<=7),mo=FEATURED.filter(p=>p.days>7&&p.days<=30),ea=FEATURED.filter(p=>p.days>30);
+  const put=(id,l)=>{const e=document.getElementById(id);if(e)e.innerHTML=l.map(zrowHTML).join('')||'<div class="zrow" style="cursor:default;color:var(--dim)">nothing yet</div>';};
+  put('zl-week',wk);put('zl-month',mo);put('zl-earlier',ea);
+  const b=FEATURED.filter(p=>p.t==='b').length,o=FEATURED.length-b,bt=FEATURED.filter(p=>p.beta).length;
+  const comm=document.getElementById('zl-comm');
+  if(comm)comm.innerHTML=`
+    <div class="zrow" data-zc="builders"><span class="zdot" style="background:#19d0e8"><i class="ti ti-user" style="font-size:13px"></i></span><span class="znm">z/builders</span><span class="zcnt">${b}</span></div>
+    <div class="zrow" data-zc="orgs"><span class="zdot" style="background:#ff7a2f"><i class="ti ti-building" style="font-size:13px"></i></span><span class="znm">z/organizations</span><span class="zcnt">${o}</span></div>
+    <div class="zrow" data-zc="betas"><span class="zdot" style="background:#b98cff"><i class="ti ti-flask" style="font-size:13px"></i></span><span class="znm">z/live-betas</span><span class="zcnt">${bt}</span></div>
+    <div class="zrow" data-zc="fresh"><span class="zdot" style="background:#54d6a6"><i class="ti ti-sparkles" style="font-size:13px"></i></span><span class="znm">z/fresh</span><span class="zcnt">${wk.length}</span></div>`;
+  bindZside();
+}
+function bindZside(){
+  document.querySelectorAll('#zside .zrow').forEach(r=>{
+    if(r._zb)return;r._zb=true;
+    r.addEventListener('click',()=>{
+      if(r.dataset.zopen)return openProfile(r.dataset.zopen);
+      if(r.dataset.zq){doSearch(r.dataset.zq);window.scrollTo({top:0,behavior:'smooth'});return;}
+      const c=r.dataset.zc;if(!c)return;
+      if(c==='betas'){setFilter('beta');doSearch('');window.scrollTo({top:0,behavior:'smooth'});return;}
+      let list,title;
+      if(c==='builders'){list=FEATURED.filter(p=>p.t==='b');title='Builders';}
+      else if(c==='orgs'){list=FEATURED.filter(p=>p.t==='o');title='Organizations';}
+      else{list=FEATURED.filter(p=>p.days<=7);title='Fresh this week';}
+      renderTrack(list,false);
+      document.getElementById('peopleTitle').textContent=`${title} · ${list.length}`;
+      document.getElementById('peopleSec').scrollIntoView({behavior:'smooth'});
+    });
+  });
+}
+document.querySelectorAll('#zside .zsec-h').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('closed')));
+document.querySelectorAll('#zside .nav-item').forEach(n=>n.addEventListener('click',()=>{
+  document.querySelectorAll('#zside .nav-item').forEach(x=>x.classList.remove('on'));n.classList.add('on');
+  const k=n.dataset.nav;
+  if(k==='join'){document.getElementById('openJoin').click();return;}
+  if(k==='hero'){window.scrollTo({top:0,behavior:'smooth'});return;}
+  const t=document.getElementById(k);if(t)t.scrollIntoView({behavior:'smooth'});
+}));
+renderZside();
 
 setInterval(()=>{document.getElementById('liveCount').textContent=(12480+Math.floor(Math.random()*40)).toLocaleString();},2600);
 </script>

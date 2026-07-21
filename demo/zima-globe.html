@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zima — the builders of the future</title>
+<title>Hopamine — the builders network · powered by Zima</title>
 <style>
   :root{
-    --bg:#000000; --panel:rgba(20,20,20,.85); --card:#191919; --card2:#282828;
-    --border:#282828; --border2:#3f3f3f;
-    --text:#ffffff; --muted:#c0c0c0; --dim:#7f7f7f;
+    --bg:#15120f; --panel:rgba(28,24,20,.88); --card:#1e1a16; --card2:#2a251f;
+    --border:#2a251f; --border2:#3d362e;
+    --text:#f5efe6; --muted:#cfc5b6; --dim:#8a7f70;
     --accent:#19d0e8; --accent-dim:#0e5d66; --accent-ghost:rgba(25,208,232,.12);
     --serif:'Instrument Serif',Georgia,'Times New Roman',serif;
     --heat:#ff7a2f; --heat2:#ff4d3d; --heat-bg:rgba(255,122,47,.16); --heat-line:rgba(255,122,47,.5);
@@ -21,8 +21,16 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:#000;color:var(--text);font-family:var(--sans)}
-  body{font-size:15px;line-height:1.5;overflow-x:hidden;background:#000;padding-bottom:96px;
-    background-image:radial-gradient(900px 560px at 50% 30%,rgba(25,208,232,.05),transparent 62%)}
+  body{font-size:15px;line-height:1.5;overflow-x:hidden;background:#15120f;padding-bottom:96px}
+  body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
+    background:radial-gradient(700px 500px at 30% 20%,rgba(25,208,232,.055),transparent 60%),
+               radial-gradient(800px 600px at 75% 70%,rgba(255,122,47,.045),transparent 60%);
+    animation:drift 26s ease-in-out infinite alternate}
+  @keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(4%,-3%) scale(1.06)}}
+  body::after{content:"";position:fixed;inset:0;z-index:120;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .hero,.section,.topbar,#zside,#dock{position:relative;z-index:2}
+  .topbar{position:fixed}#zside{position:fixed}#dock{position:fixed}
   a{color:var(--accent);text-decoration:none}
 
   .topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:14px;
@@ -403,6 +411,91 @@
   #zside .zrow .ztag{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--dim);flex-shrink:0}
   #zside .zrow .zcnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
   #zside .znew{font-size:9px;font-weight:700;background:var(--heat);color:#2a1200;border-radius:8px;padding:1px 6px;margin-left:auto;flex-shrink:0}
+  /* ── unwrap intro ── */
+  #intro{position:fixed;inset:0;z-index:150;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}
+  #intro canvas{max-width:88vw;max-height:60vh;border:1px solid var(--border2);border-radius:14px;
+    transition:transform 1.1s cubic-bezier(.6,0,.3,1),opacity 1.1s,border-radius 1.1s}
+  #intro.wrap canvas{transform:perspective(1200px) rotateX(38deg) scale(.22) translateY(-16%);border-radius:50%;opacity:0}
+  #intro.wrap{background:transparent;pointer-events:none;transition:background .9s .3s}
+  #intro .il{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+  #intro.wrap .il{opacity:0;transition:.4s}
+  /* ── sticky-note personality ── */
+  .res{background:#221d17}
+  .res-grid .res:nth-child(3n+1){transform:rotate(-.5deg)}
+  .res-grid .res:nth-child(3n+2){transform:rotate(.4deg)}
+  .res:hover{transform:rotate(0) translateY(-2px);transition:.2s}
+  .official{font-size:9px;font-weight:700;letter-spacing:.04em;background:linear-gradient(90deg,var(--accent),var(--heat));color:#160d05;border-radius:8px;padding:2px 7px}
+  /* dual votes */
+  .vote2{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+  .vote2 .vb{display:flex;flex-direction:column;align-items:center;border:1px solid var(--border2);border-radius:10px;padding:5px 9px;cursor:pointer;background:#181410;user-select:none}
+  .vote2 .vb i{font-size:15px;color:var(--accent)}.vote2 .vb.cool i{color:var(--heat)}
+  .vote2 .vb b{font-size:12px}.vote2 .vb small{font-size:8px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+  .vote2 .vb.voted{border-color:var(--accent-dim);background:var(--accent-ghost)}
+  .vote2 .vb.cool.voted{border-color:var(--heat-line);background:var(--heat-bg)}
+  /* badges + wall */
+  .bdg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);border:1px solid var(--good-line);color:var(--good);background:var(--good-bg);border-radius:100000px;padding:4px 10px;margin:3px 4px 0 0}
+  .wallpost{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;font-size:13px}
+  .wallpost .wt{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:5px}
+  .customblock{border:1px dashed var(--accent-dim);border-radius:12px;margin-top:8px;padding:10px;max-height:220px;overflow:auto}
+  .dz{filter:grayscale(1) sepia(.35) hue-rotate(140deg) saturate(2.4) contrast(1.05)}
+  /* gate modal */
+  #gate{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);z-index:130;opacity:0;pointer-events:none;
+    background:var(--panel);border:1px solid var(--accent-dim);border-radius:16px;padding:14px 18px;display:flex;gap:14px;align-items:center;
+    backdrop-filter:blur(14px);transition:.25s;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+  #gate.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+  #gate .gt{font-size:13.5px}#gate .gt b{color:var(--accent)}
+  #gate button{background:var(--accent);color:#06272c;border:none;border-radius:100000px;padding:8px 15px;font-weight:600;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  /* map overlay (network graph + semantic map) */
+  .bigov{position:fixed;inset:0;z-index:90;background:rgba(16,13,10,.92);backdrop-filter:blur(8px);display:flex;flex-direction:column}
+  .bigov .bh2{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .bigov .bh2 .t{font-family:var(--serif);font-style:italic;font-size:22px}
+  .bigov .bh2 .x{margin-left:auto;color:var(--dim);font-size:24px;cursor:pointer;line-height:1}
+  .mtoggle{display:flex;gap:6px;margin-left:14px}
+  .mtoggle button{background:var(--card);border:1px solid var(--border2);color:var(--muted);border-radius:100000px;padding:6px 13px;font-size:12px;font-family:var(--mono);cursor:pointer}
+  .mtoggle button.on{color:var(--accent);border-color:var(--accent-dim);background:var(--accent-ghost)}
+  #mapport{flex:1;overflow:hidden;position:relative;cursor:grab}
+  #mapport:active{cursor:grabbing}
+  #mpan{position:absolute;left:0;top:0;transform-origin:0 0}
+  #mpan svg{position:absolute;left:0;top:0;pointer-events:none}
+  .mclu{position:absolute;transform:translate(-50%,-50%);font-family:var(--serif);font-style:italic;font-size:26px;color:var(--dim);opacity:.8;pointer-events:none}
+  .mnode{position:absolute;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border2);border-radius:12px;
+    padding:7px 11px;font-size:12px;cursor:pointer;white-space:nowrap;transition:border-color .15s}
+  .mnode:hover{border-color:var(--accent)}
+  .mnode small{display:block;color:var(--dim);font-size:10px}
+  .mnode.orgn{border-color:var(--heat-line)}
+  /* lang map */
+  .langrow{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+  .langrow .w{font-family:var(--serif);font-style:italic;font-size:24px}
+  .drift{font-size:10px;font-family:var(--mono);border-radius:100000px;padding:2px 9px;margin-left:10px;vertical-align:middle}
+  .drift.hi{background:var(--heat-bg);color:var(--heat);border:1px solid var(--heat-line)}
+  .drift.lo{background:var(--good-bg);color:var(--good);border:1px solid var(--good-line)}
+  .adef{display:flex;gap:10px;margin-top:9px;font-size:13px}
+  .adef .a{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:110px;padding-top:2px}
+  .adef .d{color:var(--muted)}
+  /* events */
+  .evgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .ev{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;cursor:pointer;display:flex;gap:14px;transition:border-color .2s,transform .2s}
+  .ev:hover{border-color:var(--accent-dim);transform:translateY(-2px)}
+  .ev .cal{width:52px;flex-shrink:0;text-align:center;border:1px solid var(--border2);border-radius:12px;overflow:hidden;height:fit-content}
+  .ev .cal .mo{background:var(--heat);color:#2a1200;font-family:var(--mono);font-size:10px;padding:2px}
+  .ev .cal .da{font-size:20px;font-weight:600;padding:5px 0}
+  .ev h4{margin:0;font-size:15.5px}
+  .ev .em{font-size:12px;color:var(--muted);margin-top:4px}
+  #evOverlay .evhero{font-family:var(--serif);font-style:italic;font-size:clamp(34px,6vw,64px);letter-spacing:-.03em;line-height:1}
+  /* quiz */
+  .qzopt{display:block;width:100%;text-align:left;background:#181410;border:1px solid var(--border);color:var(--muted);border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer;margin-top:8px}
+  .qzopt:hover{border-color:var(--accent-dim);color:var(--text)}
+  .arch{font-family:var(--serif);font-style:italic;font-size:34px;color:var(--accent)}
+  /* voice update */
+  .wave{display:flex;gap:4px;align-items:center;height:34px;margin:10px 0}
+  .wave i{width:4px;border-radius:3px;background:var(--accent);animation:wv 1s ease-in-out infinite}
+  @keyframes wv{0%,100%{height:8px}50%{height:30px}}
+  /* org view */
+  body.orgview #orgViewBtn{background:var(--accent-ghost);color:var(--accent)}
+  /* toast */
+  #toast{position:fixed;left:50%;top:76px;transform:translateX(-50%) translateY(-10px);z-index:140;opacity:0;pointer-events:none;
+    background:var(--panel);border:1px solid var(--good-line);color:var(--text);border-radius:100000px;padding:10px 20px;font-size:13px;transition:.3s;backdrop-filter:blur(12px)}
+  #toast.on{opacity:1;transform:translateX(-50%)}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Geist:wght@400;500&display=swap" rel="stylesheet">
@@ -413,7 +506,7 @@
 <body>
 
 <aside id="zside">
-  <div class="logo"><div class="glyph">⊹</div><b>Zima</b><small>network</small></div>
+  <div class="logo"><div class="glyph">⊹</div><b>Hopamine</b><small>powered by Zima</small></div>
   <div class="nav-item on" data-nav="hero"><i class="ti ti-world"></i> Home</div>
   <div class="nav-item" data-nav="peopleSec"><i class="ti ti-users"></i> Builders &amp; orgs</div>
   <div class="nav-item" data-nav="buildsSec"><i class="ti ti-flag"></i> Open builds</div>
@@ -434,15 +527,27 @@
   <hr>
   <div class="zsec" id="zs-comm"><div class="zsec-h">Communities <i class="ti ti-chevron-up"></i></div><div class="zsec-b" id="zl-comm"></div></div>
   <hr>
+  <div class="zsec" id="zs-explore"><div class="zsec-h">Explore <i class="ti ti-chevron-up"></i></div>
+    <div class="zsec-b">
+      <div class="zrow" data-zx="graph"><i class="ti ti-topology-star-3" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Network graph</span></div>
+      <div class="zrow" data-zx="sem"><i class="ti ti-map-2" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Semantic map</span></div>
+      <div class="zrow" data-zx="lang"><i class="ti ti-language" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Lang map</span></div>
+      <div class="zrow" data-zx="events"><i class="ti ti-calendar-event" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Events</span></div>
+      <div class="zrow" data-zx="quiz"><i class="ti ti-wand" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Find your archetype</span></div>
+    </div></div>
+  <hr>
   <div class="zsec" id="zs-res"><div class="zsec-h">Resources <i class="ti ti-chevron-up"></i></div>
     <div class="zsec-b">
       <div class="zrow"><a href="zima2.html" style="display:flex;gap:10px;align-items:center;color:inherit"><i class="ti ti-message-circle" style="width:26px;text-align:center;color:var(--accent)"></i><span class="znm">Ask the network (Zima 2)</span></a></div>
       <div class="zrow"><a href="https://github.com/HOPAMINE/ZIMA" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;color:inherit"><i class="ti ti-brand-github" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">GitHub</span></a></div>
+      <div class="zrow" data-zx="export"><i class="ti ti-download" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">Export my data</span></div>
+      <div class="zrow" data-zx="wipe"><i class="ti ti-trash" style="width:26px;text-align:center;color:var(--dim)"></i><span class="znm">Delete my data</span></div>
     </div></div>
 </aside>
 
 <div class="topbar">
-  <div class="brand"><div class="glyph">⊹</div><b>Zima</b></div>
+  <div class="brand"><div class="glyph">⊹</div><b>Hopamine</b></div>
+  <button class="org-btn" id="orgViewBtn" style="margin-left:6px" title="Flip to a people-centric view"><i class="ti ti-refresh" style="vertical-align:-2px"></i> Org view</button>
   <div class="topsearch"><i class="ti ti-search"></i><input id="topq" placeholder="solar panel builders in Mexico…"><button id="topgo">Search</button></div>
   <span class="star-border-container"><span class="border-gradient-bottom"></span><span class="border-gradient-top"></span><button class="join-btn inner-content" id="openJoin"><i class="ti ti-user-plus" style="vertical-align:-2px"></i> Join as builder</button></span>
   <button class="org-btn" id="openOrg"><i class="ti ti-building" style="vertical-align:-2px"></i> For organizations</button>
@@ -450,8 +555,10 @@
 
 <div id="stickyCli"><span class="pfx">⊹</span><input id="stickyq" placeholder="search the network — skill + place"><span class="go" style="color:var(--dim);font-family:var(--mono);font-size:12px">↵</span></div>
 
+<div id="intro"><canvas id="introCv" width="1000" height="500"></canvas><div class="il">⊹ hopamine · a living map of builders — click to enter</div></div>
+
 <section class="hero" id="hero">
-  <div class="ghostmark">Zima</div>
+  <div class="ghostmark">Hopamine</div>
   <div class="kicker">a living map of builders</div>
   <div id="globeViz"><div class="globe-fallback" id="gfb">projecting the grid…</div><div class="globe-shine"></div></div>
   <div class="cli-wrap">
@@ -509,6 +616,14 @@
   <div class="res-grid" id="resGrid"></div>
 </section>
 
+<section class="section" id="eventsSec" style="padding-top:0">
+  <div class="sec-head"><h2>Events</h2><span class="sub">hackathons, meetups, build weekends — click for the full page</span></div>
+  <div class="evgrid" id="evGrid"></div>
+</section>
+
+<div id="gate"><span class="gt">Create your <b>builder profile</b> to connect with people.</span><button id="gateGo">Create profile</button></div>
+<div id="toast"></div>
+
 <nav id="dock" aria-label="Navigation dock">
   <button class="ditem" data-go="hero"><i class="ti ti-world"></i><span class="dlabel">Globe</span></button>
   <button class="ditem" data-go="peopleSec"><i class="ti ti-users"></i><span class="dlabel">Builders</span></button>
@@ -518,8 +633,8 @@
 </nav>
 
 <div class="foot">
-  ⊹ &nbsp;Demo build · holographic hex grid + live density heat map · mock data.<br>
-  Globe inspired by cyberspace.online · portfolio + video links are real embedded anchors · connect uses your email client.
+  ⊹ &nbsp;<b style="font-family:var(--serif);font-style:italic;font-weight:400">Hopamine</b> — powered by Zima · demo build, mock data.<br>
+  Portfolio + video links are real embedded anchors · connect uses your email client.
 </div>
 
 <script>
@@ -532,8 +647,8 @@ const TAXO={'Technology':['AI','Compute','Robotics','Drones','Web3','Hardware'],
  'Community':['Non-profits','Organizations','Activism','Education']};
 const CATS=Object.keys(TAXO);
 const CATC={'Technology':'#5BC2E7','Green tech':'#54d6a6','Agriculture':'#a0d468','Environment':'#7bd0a0','Community':'#f4b740'};
-const TYPES=['learning','tool','builder','hackathon','event','dataset'];
-const TYPEL={learning:'learning',tool:'tools',builder:'builders',hackathon:'hackathons',event:'events',dataset:'datasets'};
+const TYPES=['learning','tool','builder','hackathon','event','dataset','pattern','lesson'];
+const TYPEL={learning:'learning',tool:'tools',builder:'builders',hackathon:'hackathons',event:'events',dataset:'datasets',pattern:'patterns',lesson:'lessons'};
 
 const HUBS=[[37.77,-122.42,42],[40.71,-74.0,40],[45.50,-73.57,26],[43.65,-79.38,20],[51.50,-0.12,36],
  [52.52,13.40,26],[48.85,2.35,22],[6.52,3.37,32],[-1.29,36.82,28],[12.97,77.59,36],[19.07,72.87,24],
@@ -628,8 +743,14 @@ let RES=[
  {title:'Shenzhen open-hardware hackathon',type:'hackathon',cat:'Technology',sub:'Hardware',task:'Meet drone + PCB builders',url:'https://example.com/r7',status:'verified',votes:88},
  {title:'Solar builders of Latin America',type:'builder',cat:'Green tech',sub:'Solar',task:'Find solar collaborators',url:'https://example.com/r8',status:'verified',votes:64},
  {title:'Global climate datasets pack',type:'dataset',cat:'Green tech',sub:'Climate',task:'Modeling climate impact',url:'https://example.com/r9',status:'pending',votes:42},
+ {title:'Pattern: reaction-role onboarding funnel',type:'pattern',cat:'Community',sub:'Organizations',task:'Gated community onboarding',url:'https://example.com/p1',status:'verified',votes:57},
+ {title:'Pattern: beta-tester waitlist loop',type:'pattern',cat:'Technology',sub:'Hardware',task:'Filling a hardware beta',url:'https://example.com/p2',status:'verified',votes:44},
+ {title:'Lesson: we shipped the drone before the firmware',type:'lesson',cat:'Technology',sub:'Drones',task:'Sequencing a hardware launch',url:'https://example.com/l1',status:'verified',votes:71},
+ {title:'Lesson: our solar cohort #1 had no site surveys',type:'lesson',cat:'Green tech',sub:'Solar',task:'Planning install cohorts',url:'https://example.com/l2',status:'pending',votes:29},
 ];
-const RTYPE={learning:'ti-school',tool:'ti-tool',builder:'ti-hammer',hackathon:'ti-code',event:'ti-calendar-event',dataset:'ti-database'};
+const RDAYS=[3,12,1,25,9,6,0,15,2,4,7,1,33];
+RES.forEach((r,i)=>{r.days=RDAYS[i%RDAYS.length];r.cool=Math.round(r.votes*0.6);r.official=r.type==='hackathon';});
+const RTYPE={learning:'ti-school',tool:'ti-tool',builder:'ti-hammer',hackathon:'ti-code',event:'ti-calendar-event',dataset:'ti-database',pattern:'ti-puzzle',lesson:'ti-bulb'};
 
 const COUNTRY={china:[34,105],usa:[39,-98],'united states':[39,-98],canada:[56,-100],kenya:[0.5,37.9],japan:[36,138],india:[22,79],germany:[51,10],brazil:[-10,-52],australia:[-25,133],nigeria:[9,8],mexico:[23,-102],uk:[54,-2],'united kingdom':[54,-2],singapore:[1.35,103.8],france:[46,2]};
 const CITY={nairobi:[-1.29,36.82],montreal:[45.5,-73.57],lagos:[6.52,3.37],berlin:[52.52,13.4],tokyo:[35.68,139.69],london:[51.5,-0.12],sydney:[-33.87,151.21],bangalore:[12.97,77.59],austin:[30.27,-97.74],shenzhen:[22.54,114.06],beijing:[39.9,116.4],shanghai:[31.23,121.47],toronto:[43.65,-79.38],monterrey:[25.67,-100.31],guadalajara:[20.67,-103.35],'mexico city':[19.43,-99.13],'são paulo':[-23.55,-46.63],'sao paulo':[-23.55,-46.63],paris:[48.85,2.35]};
@@ -713,7 +834,8 @@ function avatar(name){return `https://api.dicebear.com/9.x/notionists/svg?seed=$
 function embedHTML(part){if(part.pf)return `<a class="embed pf" href="${part.pf}" target="_blank" rel="noopener"><i class="ti ti-arrow-up-right"></i>portfolio</a>`;
   if(part.yt)return `<a class="embed yt" href="https://youtu.be/${part.yt}" target="_blank" rel="noopener"><i class="ti ti-brand-youtube"></i>YouTube</a>`;return part;}
 function bioToHTML(parts){return parts.map(p=>typeof p==='string'?p:embedHTML(p)).join('');}
-function avImg(p,cls){return p.t==='o'?`<div class="${cls} fb">${initials(p.name)}</div>`:`<img class="${cls}" src="${avatar(p.name)}" onerror="this.outerHTML='<div class=&quot;${cls} fb&quot;>${initials(p.name)}</div>'">`;}
+function avImg(p,cls){if(p.photo)return `<img class="${cls} dz" src="${p.photo}">`;
+  return p.t==='o'?`<div class="${cls} fb">${initials(p.name)}</div>`:`<img class="${cls}" src="${avatar(p.name)}" onerror="this.outerHTML='<div class=&quot;${cls} fb&quot;>${initials(p.name)}</div>'">`;}
 
 /* ===================== CARDS ===================== */
 function cardHTML(p,rank){
@@ -732,7 +854,11 @@ function renderTrack(list,ranked){
   if(!list.length){car.classList.add('results');t.innerHTML='<div class="empty">No builders match yet — try a skill + place like “aquaponics in India”.</div>';return;}
   if(ranked){car.classList.add('results');t.innerHTML=list.map((p,i)=>cardHTML(p,i+1)).join('');}
   else{car.classList.remove('results');const h=list.map(p=>cardHTML(p)).join('');t.innerHTML=h+h;}
-  t.querySelectorAll('.card').forEach(c=>c.addEventListener('click',()=>openProfile(c.dataset.name)));
+  t.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('click',()=>openProfile(c.dataset.name));
+    c.addEventListener('dblclick',()=>{const p=FEATURED.find(x=>x.name===c.dataset.name);
+      if(p&&p.t==='o'){const d=document.getElementById('profileDrawer');if(d)d.remove();fullProfile(p);}});
+  });
 }
 renderTrack(FEATURED,false);
 
@@ -759,6 +885,7 @@ function renderBuilds(list){
   const c=document.getElementById('builds');
   c.innerHTML=list.length?list.map((b,i)=>buildHTML(b,i)).join(''):'<div class="empty">No open builds match that.</div>';
   c.querySelectorAll('.rm-toggle').forEach(t=>t.addEventListener('click',()=>{document.getElementById('rm-'+t.dataset.i).classList.toggle('hide');t.classList.toggle('open');}));
+  c.querySelectorAll('.apply2').forEach(a=>a.addEventListener('click',e=>{if(!gateOK())e.preventDefault();}));
 }
 function filterBuilds(){
   const q=(document.getElementById('buildq').value||'').trim().toLowerCase();
@@ -776,12 +903,15 @@ document.getElementById('buildq').addEventListener('input',filterBuilds);
 renderBuilds(BUILDS);
 
 /* ===================== ZIMA LIBRARY (resources) ===================== */
-let resCat='all', resType='all', voted={};
+let resCat='all', resType='all', resTime='all', forYou=false, voted={}, cooled={};
 function resHTML(r,idx){
   const badge=r.status==='verified'?`<span class="badge ver"><i class="ti ti-rosette-discount-check" style="font-size:12px"></i> Verified</span>`:`<span class="badge pend"><i class="ti ti-clock" style="font-size:12px"></i> Pending verification</span>`;
   const cat=`<span class="catchip" style="color:${CATC[r.cat]||'#93a4b8'};border-color:${(CATC[r.cat]||'#2d3f53')}55"><span class="sw" style="width:8px;height:8px;border-radius:2px;background:${CATC[r.cat]||'#93a4b8'}"></span>${r.cat}${r.sub?' / '+r.sub:''}</span>`;
   return `<div class="res">
-    <div class="vote ${voted[idx]?'voted':''}" data-i="${idx}"><i class="ti ti-chevron-up"></i><b>${r.votes}</b></div>
+    <div class="vote2">
+      <span class="vb ${voted[idx]?'voted':''}" data-i="${idx}" data-v="rel"><i class="ti ti-chevron-up"></i><b>${r.votes}</b><small>rel</small></span>
+      <span class="vb cool ${cooled[idx]?'voted':''}" data-i="${idx}" data-v="cool"><i class="ti ti-flame"></i><b>${r.cool}</b><small>cool</small></span>
+    </div>
     <div style="min-width:0"><div class="rtitle">${r.title}</div>
       <div class="rmeta"><span class="mini"><i class="ti ${RTYPE[r.type]||'ti-file'}" style="font-size:12px;vertical-align:-2px"></i> ${r.type}</span>${cat}${badge}</div>
       <div class="rtask"><i class="ti ti-target-arrow" style="font-size:12px;vertical-align:-2px"></i> for: ${r.task}</div>
@@ -792,11 +922,21 @@ function renderRes(){
   let list=RES.map((r,i)=>({r,i}));
   if(resCat!=='all')list=list.filter(x=>x.r.cat===resCat||x.r.sub===resCat);
   if(resType!=='all')list=list.filter(x=>x.r.type===resType);
+  if(resTime==='today')list=list.filter(x=>x.r.days<=1);
+  else if(resTime==='week')list=list.filter(x=>x.r.days<=7);
+  else if(resTime==='month')list=list.filter(x=>x.r.days<=30);
+  if(forYou&&APP.user&&APP.user.interests&&APP.user.interests.length){
+    const ints=APP.user.interests.map(x=>x.toLowerCase());
+    list=list.filter(x=>ints.some(t=>[x.r.cat,x.r.sub,x.r.title,x.r.task].join(' ').toLowerCase().includes(t.toLowerCase().split(' ')[0])));
+  }
   if(q)list=list.filter(x=>[x.r.title,x.r.task,x.r.cat,x.r.type].join(' ').toLowerCase().includes(q));
-  list.sort((a,b)=>b.r.votes-a.r.votes);
+  list.sort((a,b)=>(b.r.votes+b.r.cool)-(a.r.votes+a.r.cool));
   const g=document.getElementById('resGrid');
-  g.innerHTML=list.length?list.map(x=>resHTML(x.r,x.i)).join(''):'<div class="empty">No resources yet — be the first to contribute.</div>';
-  g.querySelectorAll('.vote').forEach(v=>v.addEventListener('click',()=>{const i=+v.dataset.i;if(voted[i]){RES[i].votes--;voted[i]=false;}else{RES[i].votes++;voted[i]=true;}renderRes();}));
+  g.innerHTML=list.length?list.map(x=>resHTML(x.r,x.i)).join(''):'<div class="empty">Nothing in this slice yet — widen the time frame or contribute.</div>';
+  g.querySelectorAll('.vb').forEach(v=>v.addEventListener('click',()=>{const i=+v.dataset.i;
+    if(v.dataset.v==='rel'){if(voted[i]){RES[i].votes--;voted[i]=false;}else{RES[i].votes++;voted[i]=true;}}
+    else{if(cooled[i]){RES[i].cool--;cooled[i]=false;}else{RES[i].cool++;cooled[i]=true;}}
+    renderRes();}));
 }
 document.getElementById('resq').addEventListener('input',renderRes);
 (function(){const cl=document.getElementById('resCatList');
@@ -808,8 +948,15 @@ document.getElementById('resq').addEventListener('input',renderRes);
   document.getElementById('resCatBtn').addEventListener('click',()=>document.getElementById('resCatMenu').classList.toggle('open'));
 })();
 (function(){const tc=document.getElementById('resTypes');
-  tc.innerHTML=['all'].concat(TYPES).map(t=>`<span class="ichip ${t==='all'?'on':''}" data-t="${t}">${t==='all'?'everything':TYPEL[t]}</span>`).join('');
-  tc.querySelectorAll('.ichip').forEach(ch=>ch.addEventListener('click',()=>{tc.querySelectorAll('.ichip').forEach(x=>x.classList.remove('on'));ch.classList.add('on');resType=ch.dataset.t;renderRes();}));
+  tc.innerHTML=['all'].concat(TYPES).map(t=>`<span class="ichip ${t==='all'?'on':''}" data-t="${t}">${t==='all'?'everything':TYPEL[t]}</span>`).join('')
+   +`<span style="flex-basis:100%"></span>`
+   +[['all','all time'],['today','today'],['week','this week'],['month','this month']].map(([v,l])=>`<span class="ichip tchip ${v==='all'?'on':''}" data-tt="${v}">${l}</span>`).join('')
+   +`<span class="ichip fy" data-fy="1"><i class="ti ti-star" style="font-size:12px;vertical-align:-2px"></i> for you</span>`;
+  tc.querySelectorAll('.ichip[data-t]').forEach(ch=>ch.addEventListener('click',()=>{tc.querySelectorAll('.ichip[data-t]').forEach(x=>x.classList.remove('on'));ch.classList.add('on');resType=ch.dataset.t;renderRes();}));
+  tc.querySelectorAll('.tchip').forEach(ch=>ch.addEventListener('click',()=>{tc.querySelectorAll('.tchip').forEach(x=>x.classList.remove('on'));ch.classList.add('on');resTime=ch.dataset.tt;renderRes();}));
+  tc.querySelector('.fy').addEventListener('click',e=>{const c=e.currentTarget;
+    if(!APP.hasProfile){gateOK();return;}
+    forYou=!forYou;c.classList.toggle('on',forYou);renderRes();});
 })();
 renderRes();
 
@@ -939,6 +1086,7 @@ function openProfile(name){
       ${p.links&&p.links.length?`<div class="pm-lbl">links</div><div class="pm-links">${p.links.map(l=>`<a href="${l.url}" target="_blank" rel="noopener"><i class="ti ti-link"></i> ${l.label}</a>`).join('')}</div>`:''}
       ${p.interests&&p.interests.length?`<div class="pm-lbl">looking for collaborators in</div><div class="chipset" style="padding:0">${p.interests.map(x=>`<span class="mini">${x}</span>`).join('')}</div>`:''}
       ${yt?`<div class="pm-lbl">featured work</div><div class="yt-embed"><iframe src="https://www.youtube.com/embed/${yt}" title="work" allowfullscreen loading="lazy"></iframe></div>`:''}`;}
+  inner+=profExtra(p);
   let betaBlock='';
   if(p.beta){const pct=Math.round(p.beta.testers/p.beta.needed*100);
     betaBlock=`<div class="betapanel"><div class="bt"><i class="ti ti-flask"></i> Open beta · ${p.beta.title}</div>
@@ -960,14 +1108,17 @@ function openProfile(name){
   requestAnimationFrame(()=>dr.classList.add('open'));
   const close=()=>{dr.classList.remove('open');setTimeout(()=>dr.remove(),330);};
   dr.querySelector('.x').addEventListener('click',close);
-  dr.querySelector('#d-msg').addEventListener('click',()=>{window.location.href=`mailto:${p.email}?subject=`+encodeURIComponent('Hello from the Zima network');});
+  dr.querySelector('#d-msg').addEventListener('click',()=>{if(!gateOK())return;window.location.href=`mailto:${p.email}?subject=`+encodeURIComponent('Hello from the Hopamine network');});
   dr.querySelector('#d-full').addEventListener('click',()=>{close();fullProfile(p);});
+  dr.querySelectorAll('.voicebtn').forEach(b=>b.addEventListener('click',()=>openVoice(p)));
   dr.querySelector('#d-share').addEventListener('click',e=>{const b=e.currentTarget;
     const txt=`${p.name} — ${p.role} (${p.loc}) · found on the Zima network`;
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>{b.textContent='copied ✓';setTimeout(()=>b.textContent='share',1500);}).catch(()=>{});
   });
-  dr.querySelectorAll('.prim').forEach(btn=>btn.addEventListener('click',()=>{const isBeta=btn.classList.contains('beta');
-    window.location.href=`mailto:${p.email}?subject=`+encodeURIComponent(isBeta?('Join beta: '+btn.dataset.title):'Hello from the Zima network');}));
+  dr.querySelectorAll('.prim').forEach(btn=>btn.addEventListener('click',()=>{if(!gateOK())return;
+    const isBeta=btn.classList.contains('beta');
+    const subj=isBeta?('Join beta: '+btn.dataset.title):(p.t==='o'&&p.resumes?'Resume attached — via Hopamine':'Hello from the Hopamine network');
+    window.location.href=`mailto:${p.email}?subject=`+encodeURIComponent(subj);}));
 }
 
 /* ===================== ORG REGISTER ===================== */
@@ -985,6 +1136,7 @@ document.getElementById('openOrg').addEventListener('click',()=>{
       <div id="grp-project"><label>Project to showcase</label><input id="o-proj" placeholder="Monterrey installer cohort">
         <label>Steps (comma-separated, add ✓ for done) — optional</label><input id="o-steps" placeholder="Recruit ✓, Classroom ✓, Practicum, Certify"></div>
       <div class="betaopt"><div class="sw" id="o-betasw"></div><div class="lbl">Offer a live beta<small>let testers try an early build (opt-in)</small></div></div>
+      <div class="betaopt"><div class="sw" id="o-ressw"></div><div class="lbl">Request resumes<small>applicants attach a resume when they connect</small></div></div>
       <div id="grp-beta" class="hide"><label>Beta name</label><input id="o-beta" placeholder="Installer app beta"><input id="o-beta-need" placeholder="testers wanted, e.g. 40" style="margin-top:8px;text-align:center"></div>
       <label>Contact email</label><input id="o-email" placeholder="join@yourorg.org">
       <button class="prim" id="o-submit"><i class="ti ti-plus" style="vertical-align:-2px"></i> Post to the network</button></div></div>`;
@@ -995,6 +1147,8 @@ document.getElementById('openOrg').addEventListener('click',()=>{
   ov.querySelectorAll('#o-roletype button').forEach(b=>b.addEventListener('click',()=>{ov.querySelectorAll('#o-roletype button').forEach(x=>x.classList.remove('on'));b.classList.add('on');roleType=b.dataset.v;}));
   let betaOn=false;const bsw=ov.querySelector('#o-betasw');
   bsw.addEventListener('click',()=>{betaOn=!betaOn;bsw.classList.toggle('on',betaOn);ov.querySelector('#grp-beta').classList.toggle('hide',!betaOn);});
+  let resOn=false;const rsw=ov.querySelector('#o-ressw');
+  rsw.addEventListener('click',()=>{resOn=!resOn;rsw.classList.toggle('on',resOn);});
   const mode=ov.querySelector('#o-mode'),cap=ov.querySelector('#o-cap'),gP=ov.querySelector('#grp-people'),gJ=ov.querySelector('#grp-project');
   function upd(){const v=+mode.value;gP.classList.toggle('hide',v>65);gJ.classList.toggle('hide',v<35);
     cap.innerHTML=v<35?'<b>Recruiting</b> — post open roles, no project needed':v>65?'<b>Showcasing</b> — get eyes on your project, roles optional':'<b>A bit of both</b> — recruit and showcase';}
@@ -1005,7 +1159,7 @@ document.getElementById('openOrg').addEventListener('click',()=>{
     const roles=(v<=65)?(ov.querySelector('#o-roles').value||'').split(',').map(s=>s.trim()).filter(Boolean):[];
     const proj=(v>=35)?(ov.querySelector('#o-proj').value||'').trim():'';
     const stepsRaw=(v>=35)?(ov.querySelector('#o-steps').value||'').split(',').map(s=>s.trim()).filter(Boolean):[];
-    const org={t:'o',name,role:what||'Organization',loc,country:loc.toLowerCase(),lat:0,lng:0,roles,roleType,builds:proj?1:0,bio:what||'A new organization on the network.',email};
+    const org={t:'o',name,role:what||'Organization',loc,country:loc.toLowerCase(),lat:0,lng:0,roles,roleType,builds:proj?1:0,bio:what||'A new organization on the network.',email,resumes:resOn,days:0,_mine:true};
     if(betaOn){const need=parseInt(ov.querySelector('#o-beta-need').value)||30;org.beta={title:(ov.querySelector('#o-beta').value||'Early beta').trim(),testers:0,needed:need,activity:[0,0,0,0,0,0,0]};}
     FEATURED.unshift(org);renderTrack(FEATURED,false);
     if(proj){const steps=(stepsRaw.length?stepsRaw:['Kickoff','In progress','Done']).map(s=>{const d=/✓/.test(s);return[s.replace('✓','').trim(),d?'done':''];});
@@ -1031,19 +1185,35 @@ function openJoin(){
       <div class="wstep" data-s="2"><h3>Show your work</h3><div class="hint">Links and something you've built.</div>
         <label>Portfolio link</label><input id="w-portfolio" placeholder="https://…">
         <label>A video link you're proud of (optional)</label><input id="w-yt" placeholder="https://youtu.be/…">
-        <label>Something you've built (one per line)</label><textarea id="w-projects" placeholder="AgriDrone Mini — a sub-250g field mapper"></textarea></div>
+        <label>Something you've built (one per line)</label><textarea id="w-projects" placeholder="AgriDrone Mini — a sub-250g field mapper"></textarea>
+        <label>Profile photo (gets the Hopamine digitized hue)</label>
+        <div style="display:flex;gap:12px;align-items:center"><input type="file" id="w-photo" accept="image/*" style="flex:1;padding:8px">
+          <img id="w-photoprev" class="dz" style="width:44px;height:44px;border-radius:11px;object-fit:cover;display:none"></div>
+        <label>Custom profile block (optional — MySpace energy)</label>
+        <div class="seg" id="w-tpl"><button data-v="">none</button><button data-v="banner">banner</button><button data-v="marquee">marquee</button></div></div>
       <div class="wstep" data-s="3"><h3>What are you trying to change?</h3><div class="hint">In your own words — this shows on your profile, handwritten.</div>
         <textarea id="w-mission" class="hand" placeholder="I want to…"></textarea>
         <label>Your vision for 2036</label><input id="w-vision" placeholder="One line on the world you're building toward"></div>
-      <div class="wstep" data-s="4"><h3>What do you want to see more of?</h3><div class="hint">Pick a few — this tunes who and what finds you.</div>
-        <div class="ichips" id="w-interests"></div></div>
+      <div class="wstep" data-s="4"><h3>What do you want to see more of?</h3><div class="hint">Pick a few — this tunes who and what finds you. Add your own keywords too.</div>
+        <div class="ichips" id="w-interests"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><input id="w-kw" placeholder="add your own keyword — e.g. mycelium" style="flex:1"><button class="ghostbtn" id="w-kwadd" style="border:1px solid var(--border2);background:transparent;color:var(--muted);border-radius:10px;padding:8px 14px;cursor:pointer">add</button></div></div>
     </div>
     <div class="wnav"><button class="wback" id="w-back">Back</button><button class="wnext" id="w-next">Next</button></div></div>`;
   document.body.appendChild(ov);
   const INT=['Green tech','Environment','AI tech','Hardware','Community','Drones','Solar','Hydroponics','Robotics','Climate','Wearables','Web3'];
   const chosen=new Set();
   ov.querySelector('#w-interests').innerHTML=INT.map(x=>`<span class="ichip" data-v="${x}">${x}</span>`).join('');
-  ov.querySelectorAll('.ichip').forEach(c=>c.addEventListener('click',()=>{c.classList.toggle('on');chosen.has(c.dataset.v)?chosen.delete(c.dataset.v):chosen.add(c.dataset.v);}));
+  function bindChips(){ov.querySelectorAll('#w-interests .ichip').forEach(c=>{if(c._b)return;c._b=true;
+    c.addEventListener('click',()=>{c.classList.toggle('on');chosen.has(c.dataset.v)?chosen.delete(c.dataset.v):chosen.add(c.dataset.v);});});}
+  bindChips();
+  ov.querySelector('#w-kwadd').addEventListener('click',()=>{const kw=(ov.querySelector('#w-kw').value||'').trim();if(!kw)return;
+    ov.querySelector('#w-interests').insertAdjacentHTML('beforeend',`<span class="ichip on" data-v="${kw}">${kw}</span>`);
+    chosen.add(kw);ov.querySelector('#w-kw').value='';bindChips();});
+  let photoData=null;
+  ov.querySelector('#w-photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
+    const rd=new FileReader();rd.onload=()=>{photoData=rd.result;const pv=ov.querySelector('#w-photoprev');pv.src=photoData;pv.style.display='block';};rd.readAsDataURL(f);});
+  let tpl='';
+  ov.querySelectorAll('#w-tpl button').forEach(b=>b.addEventListener('click',()=>{ov.querySelectorAll('#w-tpl button').forEach(x=>x.classList.remove('on'));b.classList.add('on');tpl=b.dataset.v;}));
   const steps=[...ov.querySelectorAll('.wstep')];let si=0;
   const dots=ov.querySelector('#wdots');dots.innerHTML=steps.map(()=>'<i></i>').join('');
   function show(){steps.forEach((s,i)=>s.classList.toggle('on',i===si));
@@ -1066,8 +1236,13 @@ function openJoin(){
       skills:skills.length?skills:['Building'],bioParts,stat:proj[0]||'New on the network',
       email:ov.querySelector('#w-email').value.trim()||'hello@example.com',
       mission:ov.querySelector('#w-mission').value.trim(),vision2036:ov.querySelector('#w-vision').value.trim(),
-      projects:proj,links,interests:[...chosen]};
+      projects:proj,links,interests:[...chosen],days:0,_mine:true,photo:photoData,
+      customHtml:tpl==='banner'?`<div style="background:linear-gradient(90deg,#19d0e8,#ff7a2f);padding:14px;border-radius:10px;color:#160d05;font-weight:600">⊹ ${name} is building the future</div>`
+        :tpl==='marquee'?`<marquee style="color:#19d0e8;font-family:monospace">⊹ ${name} · open to collabs · say hi ⊹</marquee>`:null};
     FEATURED.unshift(p);renderTrack(FEATURED,false);
+    APP.hasProfile=true;APP.user=p;
+    if(typeof renderZside==='function')renderZside();
+    showToast('Profile live — you can now connect, apply, and join betas');
     ov.remove();
     if(lat&&world){world.pointOfView({lat,lng,altitude:1.6},1200);}
     openProfile(name);
@@ -1207,6 +1382,7 @@ function bindZside(){
   document.querySelectorAll('#zside .zrow').forEach(r=>{
     if(r._zb)return;r._zb=true;
     r.addEventListener('click',()=>{
+      if(r.dataset.zx)return zxAction(r.dataset.zx);
       if(r.dataset.zopen)return openProfile(r.dataset.zopen);
       if(r.dataset.zq){doSearch(r.dataset.zq);window.scrollTo({top:0,behavior:'smooth'});return;}
       const c=r.dataset.zc;if(!c)return;
@@ -1230,6 +1406,231 @@ document.querySelectorAll('#zside .nav-item').forEach(n=>n.addEventListener('cli
   const t=document.getElementById(k);if(t)t.scrollIntoView({behavior:'smooth'});
 }));
 renderZside();
+
+/* ═══════ APP STATE + GATED CONNECT + TOAST ═══════ */
+const APP={hasProfile:false,user:null,orgView:false};
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3400);}
+function gateOK(){if(APP.hasProfile)return true;
+  const g=document.getElementById('gate');g.classList.add('on');
+  clearTimeout(g._t);g._t=setTimeout(()=>g.classList.remove('on'),4200);return false;}
+document.getElementById('gateGo').addEventListener('click',()=>{document.getElementById('gate').classList.remove('on');document.getElementById('openJoin').click();});
+
+/* ═══════ PROFILE EXTRAS: badges, walls, custom HTML, resumes ═══════ */
+const EXTRA={
+ 'Wei Zhang':{badges:['Open build shipped','Beta host','Fresh 100'],
+   wall:[['Flight test #12 — 40 min endurance on the Mini. Footage soon.','2d ago'],['Firmware beta wave 3 opens Friday.','5d ago']],
+   customHtml:'<div style="background:linear-gradient(90deg,#19d0e8,#ff7a2f);padding:13px;border-radius:10px;color:#160d05;font-weight:600">⚡ AgriDrone Mini — see the sky like a satellite</div>'},
+ 'Mateo Reyes':{badges:['Beta host','Community pick'],wall:[['Rooftop #121 wired today. The kit keeps getting faster.','1d ago']]},
+ 'Nadia Rahman':{badges:['Beta host'],wall:[['Sleep-ring v2 cases arrived. Testers: check your DMs.','3d ago']]},
+ 'SkyForge Labs':{resumes:true,badges:['Hiring now']}};
+FEATURED.forEach(p=>{if(EXTRA[p.name])Object.assign(p,EXTRA[p.name]);});
+function profExtra(p){
+  let h='';
+  if(p.badges&&p.badges.length)h+=`<div class="pm-lbl">badges</div><div>${p.badges.map(b=>`<span class="bdg"><i class="ti ti-award"></i>${b}</span>`).join('')}</div>`;
+  if(p.wall&&p.wall.length)h+=`<div class="pm-lbl">wall</div>${p.wall.map(w=>`<div class="wallpost">${w[0]}<div class="wt">${w[1]}</div></div>`).join('')}`;
+  if(p.customHtml)h+=`<div class="pm-lbl">custom block</div><div class="customblock">${p.customHtml}</div>`;
+  if(p.t==='o'&&p.resumes)h+=`<div class="pm-lbl">hiring</div><div class="pm-val"><i class="ti ti-file-cv" style="color:var(--accent);vertical-align:-2px"></i> Resumes requested — attach yours when you connect.</div>`;
+  if(p.t==='o')h+=`<div class="pm-lbl">org tools</div><button class="p-btn voicebtn" style="border:1px solid var(--border2);background:var(--card2);color:var(--text);border-radius:100000px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-family:var(--mono)"><i class="ti ti-microphone" style="vertical-align:-2px"></i> update by voice</button>`;
+  return h;
+}
+
+/* ═══════ UNWRAP → WRAP GLOBE INTRO ═══════ */
+(function(){
+  const iv=document.getElementById('intro'),cv=document.getElementById('introCv');
+  if(!iv||!cv)return;
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  ctx.fillStyle='#0b0906';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(25,208,232,.18)';ctx.lineWidth=1;
+  for(let la=-60;la<=60;la+=20){const y=(90-la)/180*H;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  for(let ln=-180;ln<=180;ln+=20){const x=(ln+180)/360*W;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  HUBS.forEach(([la,ln,n])=>{const x=(ln+180)/360*W,y=(90-la)/180*H;
+    const g=ctx.createRadialGradient(x,y,0,x,y,8+n*0.8);
+    g.addColorStop(0,'rgba(255,140,60,.85)');g.addColorStop(1,'rgba(255,80,40,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,8+n*0.8,0,7);ctx.fill();});
+  HEAT.forEach(p=>{const x=(p.lng+180)/360*W,y=(90-p.lat)/180*H;
+    ctx.fillStyle='rgba(25,208,232,.5)';ctx.fillRect(x,y,1.6,1.6);});
+  function wrap(){if(iv.classList.contains('wrap'))return;iv.classList.add('wrap');setTimeout(()=>iv.remove(),1400);}
+  iv.addEventListener('click',wrap);
+  setTimeout(wrap,2100);
+})();
+
+/* ═══════ EVENTS (Luma-style) ═══════ */
+const EVENTS=[
+ {mo:'AUG',da:'09',title:'Hopamine build weekend',loc:'Montreal, CA',official:true,
+  about:'48 hours, one open build per team, demos on Sunday night. Hardware bench, grow room, and a wall of sticky notes.',email:'events@hopamine.example.com'},
+ {mo:'AUG',da:'23',title:'Open-hardware hackathon',loc:'Shenzhen, CN',official:false,
+  about:'PCB speedruns, drone rigs, and open firmware. Bring a board, leave with a build.',email:'hack@example.com'},
+ {mo:'SEP',da:'06',title:'Solar installer meetup',loc:'Mexico City, MX',official:false,
+  about:'Kit demos on a real rooftop. Apprentices welcome — SolMX crew on site.',email:'meet@example.com'}];
+(function(){
+  const g=document.getElementById('evGrid');if(!g)return;
+  g.innerHTML=EVENTS.map((e,i)=>`<div class="ev" data-e="${i}">
+    <div class="cal"><div class="mo">${e.mo}</div><div class="da">${e.da}</div></div>
+    <div><h4>${e.title} ${e.official?'<span class="official">HOPAMINE</span>':''}</h4>
+    <div class="em"><i class="ti ti-map-pin"></i> ${e.loc}</div></div></div>`).join('');
+  g.querySelectorAll('.ev').forEach(c=>c.addEventListener('click',()=>{
+    const e=EVENTS[+c.dataset.e];
+    const ov=document.createElement('div');ov.className='bigov';ov.id='evO';
+    ov.innerHTML=`<div class="bh2"><span class="t">event</span><span class="x">×</span></div>
+      <div style="flex:1;overflow-y:auto;padding:40px clamp(18px,6vw,90px)">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.18em;text-transform:uppercase">${e.mo} ${e.da} · ${e.loc} ${e.official?'· official':''}</div>
+        <div class="evhero">${e.title}</div>
+        ${e.official?'<span class="official" style="font-size:11px">HOPAMINE EVENT</span>':''}
+        <p style="max-width:56ch;font-size:17px;color:var(--muted);margin-top:22px">${e.about}</p>
+        <button class="prim" style="max-width:260px" id="evReg"><i class="ti ti-ticket" style="vertical-align:-2px"></i> Register</button>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('.x').addEventListener('click',()=>ov.remove());
+    ov.querySelector('#evReg').addEventListener('click',()=>{if(!gateOK())return;
+      window.location.href='mailto:'+e.email+'?subject='+encodeURIComponent('Register: '+e.title);});
+  }));
+})();
+
+/* ═══════ NETWORK GRAPH + SEMANTIC MAP ═══════ */
+function openMap(mode){
+  const old=document.getElementById('mapO');if(old)old.remove();
+  const ov=document.createElement('div');ov.className='bigov';ov.id='mapO';
+  ov.innerHTML=`<div class="bh2"><span class="t">${mode==='graph'?'network graph':'semantic map'}</span>
+    <div class="mtoggle"><button data-m="graph" class="${mode==='graph'?'on':''}">graph</button><button data-m="sem" class="${mode==='sem'?'on':''}">semantic</button></div>
+    <span style="color:var(--dim);font-family:var(--mono);font-size:11px;margin-left:14px">drag to pan · scroll to zoom · click a node</span>
+    <span class="x">×</span></div>
+    <div id="mapport"><div id="mpan"></div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('.x').addEventListener('click',()=>ov.remove());
+  ov.querySelectorAll('.mtoggle button').forEach(b=>b.addEventListener('click',()=>{ov.remove();openMap(b.dataset.m);}));
+  const pan=ov.querySelector('#mpan');
+  const CC={},order=CATS.slice();
+  order.forEach((c,i)=>{const a=i/order.length*Math.PI*2;CC[c]=[800+Math.cos(a)*430,500+Math.sin(a)*280];});
+  function clusterOf(p){for(const c of order)if(matchCat(p,c))return c;return 'Community';}
+  let nodes='',lines='';
+  order.forEach(c=>{nodes+=`<div class="mclu" style="left:${CC[c][0]}px;top:${CC[c][1]}px">${c}</div>`;});
+  FEATURED.forEach((p,i)=>{
+    const c=clusterOf(p),cc=CC[c]||CC['Community'];
+    const a=(i*2.4)%(Math.PI*2),r=90+(i%4)*38;
+    const x=cc[0]+Math.cos(a)*r,y=cc[1]+Math.sin(a)*r;
+    nodes+=`<div class="mnode ${p.t==='o'?'orgn':''}" style="left:${x}px;top:${y}px" data-n="${p.name}">${p.name}<small>${p.role}</small></div>`;
+    if(mode==='graph')lines+=`<line x1="${cc[0]}" y1="${cc[1]}" x2="${x}" y2="${y}" stroke="rgba(25,208,232,.22)" stroke-width="1.2"/>`;
+  });
+  pan.innerHTML=(mode==='graph'?`<svg width="1600" height="1000">${lines}</svg>`:'')+nodes;
+  pan.querySelectorAll('.mnode').forEach(n=>n.addEventListener('click',e=>{e.stopPropagation();ov.remove();openProfile(n.dataset.n);}));
+  let sc=0.75,tx=-180,ty=-90,drag=null;
+  const apply=()=>pan.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`;apply();
+  const port=ov.querySelector('#mapport');
+  port.addEventListener('mousedown',e=>{drag=[e.clientX-tx,e.clientY-ty];});
+  window.addEventListener('mousemove',e=>{if(drag){tx=e.clientX-drag[0];ty=e.clientY-drag[1];apply();}});
+  window.addEventListener('mouseup',()=>drag=null);
+  port.addEventListener('wheel',e=>{e.preventDefault();sc=Math.min(2,Math.max(.35,sc*(e.deltaY<0?1.1:0.9)));apply();},{passive:false});
+}
+
+/* ═══════ LANG MAP ═══════ */
+const LANGD=[
+ {w:'growth',drift:'high',defs:[['seedcasters','more living things in the ground than last season'],['operators','revenue, users, GDP — the line goes up'],['stewards','capacity of a community to hold more people well']]},
+ {w:'regenerative',drift:'high',defs:[['farmers','leaves the soil better than you found it'],['developers','a system that renews its own inputs'],['founders','a brand word for sustainable, unfortunately']]},
+ {w:'build',drift:'low',defs:[['everyone','make a real thing and show it']]},
+ {w:'community',drift:'medium',defs:[['organizers','people who show up for each other repeatedly'],['marketers','an audience with a Discord']]},
+ {w:'scale',drift:'medium',defs:[['engineers','same system, 100× the load, no redesign'],['operators','more cities, more cohorts, more headcount']]}];
+function openLang(){
+  const ov=document.createElement('div');ov.className='overlay';
+  ov.innerHTML=`<div class="modal" style="max-width:600px"><div class="mhead"><b>Lang map — the communal dictionary</b><span class="x">×</span></div>
+    <div class="mbody" style="max-height:70vh;overflow-y:auto">
+      <p style="color:var(--dim);font-size:12.5px;margin:0 0 14px;font-family:var(--mono)">the same word, defined by each archetype. high drift = the network means different things — a bridge worth building.</p>
+      ${LANGD.map(l=>`<div class="langrow"><span class="w">${l.w}</span><span class="drift ${l.drift==='high'?'hi':'lo'}">${l.drift} drift</span>
+        ${l.defs.map(d=>`<div class="adef"><span class="a">${d[0]}</span><span class="d">${d[1]}</span></div>`).join('')}</div>`).join('')}
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector('.x').addEventListener('click',()=>ov.remove());
+}
+
+/* ═══════ JOIN QUIZ (archetype sorter) ═══════ */
+const QUIZ=[
+ {q:'A build stalls. What do you do first?',o:[['Open the toolbox and fix it myself','builder'],['Call the two people who can unblock it','connector'],['Zoom out — is this the right build at all?','pioneer']]},
+ {q:'Your ideal Saturday?',o:[['Workshop, solder smoke, prototypes','builder'],['A meetup you organized','steward'],['Reading about something nobody else is on yet','pioneer']]},
+ {q:'What do people thank you for?',o:[['The thing you made them','builder'],['The intro that changed their year','connector'],['Holding the space together','steward']]}];
+const ARCH={builder:['The Builder','You make the thing. The network needs your hands — open builds are your home.'],
+ connector:['The Connector','You are the network effect. Matching and messaging is where you shine.'],
+ steward:['The Steward','You hold communities together. Orgs and events are your territory.'],
+ pioneer:['The Pioneer','You see it first. The directory and lang map are your instruments.']};
+function openQuiz(){
+  const score={builder:0,connector:0,steward:0,pioneer:0};let qi=0;
+  const ov=document.createElement('div');ov.className='overlay';
+  ov.innerHTML=`<div class="modal"><div class="mhead"><b>Find your archetype</b><span class="x">×</span></div><div class="mbody" id="qz"></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector('.x').addEventListener('click',()=>ov.remove());
+  function step(){
+    const z=ov.querySelector('#qz');
+    if(qi<QUIZ.length){const q=QUIZ[qi];
+      z.innerHTML=`<div style="font-family:var(--mono);font-size:11px;color:var(--dim)">${qi+1} / ${QUIZ.length}</div>
+        <h3 style="margin:6px 0 4px">${q.q}</h3>${q.o.map((o,i)=>`<button class="qzopt" data-i="${i}">${o[0]}</button>`).join('')}`;
+      z.querySelectorAll('.qzopt').forEach(b=>b.addEventListener('click',()=>{score[q.o[+b.dataset.i][1]]++;qi++;step();}));
+    }else{
+      const top=Object.entries(score).sort((a,b)=>b[1]-a[1])[0][0],A=ARCH[top];
+      z.innerHTML=`<div style="text-align:center;padding:10px 0">
+        <div class="arch">${A[0]}</div><p style="color:var(--muted);max-width:38ch;margin:12px auto">${A[1]}</p>
+        <button class="prim" id="qzGo">Create your profile as ${A[0].toLowerCase()} ⊹</button></div>`;
+      z.querySelector('#qzGo').addEventListener('click',()=>{ov.remove();document.getElementById('openJoin').click();});
+    }}
+  step();
+}
+
+/* ═══════ VOICE UPDATE (orgs) ═══════ */
+function openVoice(p){
+  const ov=document.createElement('div');ov.className='overlay';
+  const draft=`We're now looking for 2 more test pilots and a logistics lead. The v2 bench tests wrapped early — flight trials start next month.`;
+  ov.innerHTML=`<div class="modal"><div class="mhead"><b>Update by voice — ${p.name}</b><span class="x">×</span></div>
+    <div class="mbody">
+      <div class="wave">${Array.from({length:16},(_,i)=>`<i style="animation-delay:${i*70}ms"></i>`).join('')}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:6px">transcribing…</div>
+      <textarea id="vtx" style="min-height:96px"></textarea>
+      <button class="prim" id="vGo"><i class="ti ti-check" style="vertical-align:-2px"></i> Post update</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector('.x').addEventListener('click',()=>ov.remove());
+  const tx=ov.querySelector('#vtx');let ci=0;
+  const typer=setInterval(()=>{ci+=3;tx.value=draft.slice(0,ci);if(ci>=draft.length)clearInterval(typer);},40);
+  ov.querySelector('#vGo').addEventListener('click',()=>{clearInterval(typer);
+    p.bio=tx.value.trim()||p.bio;ov.remove();
+    showToast('Update posted · Zima will ping in 30 days: “is this still the case?”');});
+}
+
+/* ═══════ EXPORT / WIPE (LinkedIn-style) ═══════ */
+function exportData(){
+  const data={profile:APP.user||{note:'no profile yet — browse-only session'},
+    upvotes:voted,coolVotes:cooled,exportedAt:new Date().toISOString(),
+    format:'single-file export — everything Hopamine holds on you, nothing else'};
+  const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hopamine-export.json';a.click();
+  showToast('Export downloaded — one file, everything we hold');}
+function wipeData(){
+  if(!confirm('Delete your profile and activity from this demo? This removes every row tied to you.'))return;
+  for(let i=FEATURED.length-1;i>=0;i--)if(FEATURED[i]._mine)FEATURED.splice(i,1);
+  APP.hasProfile=false;APP.user=null;voted={};cooled={};
+  renderTrack(FEATURED,false);renderZside();renderRes();
+  showToast('Wiped. Every row with your ID is gone.');}
+
+/* ═══════ SIDEBAR EXPLORE DISPATCH + ORG VIEW ═══════ */
+function zxAction(k){
+  if(k==='graph')return openMap('graph');
+  if(k==='sem')return openMap('sem');
+  if(k==='lang')return openLang();
+  if(k==='quiz')return openQuiz();
+  if(k==='events')return document.getElementById('eventsSec').scrollIntoView({behavior:'smooth'});
+  if(k==='export')return exportData();
+  if(k==='wipe')return wipeData();
+}
+document.getElementById('orgViewBtn').addEventListener('click',()=>{
+  APP.orgView=!APP.orgView;document.body.classList.toggle('orgview',APP.orgView);
+  if(APP.orgView){renderTrack(FEATURED.filter(p=>p.t==='b'),false);
+    document.getElementById('peopleTitle').textContent='Builders — org view';
+    document.getElementById('peopleSub').textContent='people-centric flip · find talent and testers';
+    showToast('Org view on — showing you people');}
+  else{renderTrack(FEATURED,false);
+    document.getElementById('peopleTitle').textContent='Builders & organizations';
+    document.getElementById('peopleSub').textContent='hover to pause · click a card for the full profile';
+    showToast('Org view off');}});
 
 setInterval(()=>{document.getElementById('liveCount').textContent=(12480+Math.floor(Math.random()*40)).toLocaleString();},2600);
 </script>

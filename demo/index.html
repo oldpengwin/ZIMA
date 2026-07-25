@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hopamine — powered by Zima</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000; --card:#191919; --card2:#282828; --border:#282828; --border2:#3f3f3f;
+    --text:#fff; --muted:#c0c0c0; --dim:#7f7f7f; --accent:#44ccff; --accent2:#19d0e8; --deep:#062f34;
+    --serif:'Instrument Serif',Georgia,serif; --mono:'DM Mono',ui-monospace,Menlo,monospace;
+    --sans:'Geist',-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  body{min-height:100vh;display:flex;flex-direction:column;padding:0 22px;
+    background-image:radial-gradient(760px 460px at 50% 8%,rgba(68,204,255,.07),transparent 62%)}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1020px;margin:0 auto;width:100%;flex:1;display:flex;flex-direction:column}
+  header{padding:30px 0 6px;display:flex;align-items:center;gap:12px}
+  .glyph{width:32px;height:32px;border-radius:50%;border:1px solid var(--deep);display:flex;align-items:center;justify-content:center;color:var(--accent);box-shadow:0 0 18px rgba(68,204,255,.35) inset}
+  header b{font-family:var(--serif);font-style:italic;font-weight:400;font-size:24px;letter-spacing:-.02em}
+  header small{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:2px}
+  .hero{padding:40px 0 30px;border-bottom:1px solid var(--border)}
+  .kick{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+  .hero h1{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(40px,8vw,88px);line-height:.98;letter-spacing:-.04em;margin:12px 0 0;max-width:14ch}
+  .hero p{color:var(--muted);font-size:17px;line-height:1.5;max-width:52ch;margin:18px 0 0}
+  .hero .cyan{color:var(--accent);font-style:italic}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:34px 0}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;display:flex;flex-direction:column;transition:border-color .2s,transform .2s}
+  .card:hover{border-color:var(--deep);transform:translateY(-3px)}
+  .card .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .card h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:27px;margin:8px 0 0;line-height:1.05}
+  .card p{color:var(--muted);font-size:14.5px;line-height:1.5;margin:10px 0 18px;flex:1}
+  .card .go{align-self:flex-start;font-family:var(--mono);font-size:12.5px;color:var(--text);border:1px solid var(--border2);border-radius:100000px;padding:9px 16px}
+  .card:hover .go{border-color:var(--accent);color:var(--accent)}
+  .card.feat{border-color:var(--deep)}
+  .card.feat::before{content:"main build";position:absolute;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#00171f;background:var(--accent);border-radius:100000px;padding:2px 9px;transform:translateY(-32px)}
+  .card.feat{position:relative}
+  footer{border-top:1px solid var(--border);padding:20px 0 34px;color:var(--dim);font-size:12.5px;font-family:var(--mono);display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  footer a{color:var(--dim)}footer a:hover{color:var(--accent)}
+  footer .sp{margin-left:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="glyph">⊹</div><b>Hopamine</b><small>powered by Zima</small></header>
+
+  <section class="hero">
+    <div class="kick">the builders network</div>
+    <h1>The builders of the future are already online.</h1>
+    <p>A living map of people making things — everywhere. Search in one line, meet the ones who move your work forward, and <span class="cyan">find and be found.</span></p>
+  </section>
+
+  <section class="grid">
+    <a class="card feat" href="zima-globe.html">
+      <span class="lab">globe · search · directory</span>
+      <h3>Hopamine — the network</h3>
+      <p>The full build: heat-map globe, CLI matchmaking, profiles, open builds, live betas, the archives, and the directory.</p>
+      <span class="go">Open →</span>
+    </a>
+    <a class="card" href="zima2.html">
+      <span class="lab">conversational</span>
+      <h3>Zima 2 — ask the network</h3>
+      <p>Describe who you're looking for in plain words; Zima replies with the right people. Reddit-style time-indexed sidebar.</p>
+      <span class="go">Open →</span>
+    </a>
+    <a class="card" href="zima-network-demo.html">
+      <span class="lab">early prototype</span>
+      <h3>Network demo</h3>
+      <p>The first profile-builder prototype — CLI intake, skill search, and the connect flow that started it all.</p>
+      <span class="go">Open →</span>
+    </a>
+  </section>
+
+  <footer>
+    <span>⊹ demo build · mock data</span>
+    <a href="https://github.com/HOPAMINE/ZIMA" target="_blank" rel="noopener">GitHub</a>
+    <span class="sp">Hopamine — powered by Zima</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -32,10 +32,11 @@ Discord bot for member onboarding: collect a profile, save it to Supabase, and g
 cd zima-bot
 cp .env.example .env
 # fill in all values
-3. **Required before `npm run dev`:** **Bot** → **Privileged Gateway Intents** → enable **SERVER MEMBERS INTENT** → **Save**. Without this, the bot crashes with `Used disallowed intents`.
 npm run register-commands
-4. Invite the bot: **OAuth2 → URL Generator** → scopes **`bot`** + **`applications.commands`** → permissions **Manage Roles**, **Send Messages**, **View Channels** → open URL and add to your server. The bot must appear in the member list before `npm run register-commands` works.
 ```
+
+4. **Required before `npm run dev`:** **Bot** → **Privileged Gateway Intents** → enable **SERVER MEMBERS INTENT** → **Save**. Without this, the bot crashes with `Used disallowed intents`.
+5. Invite the bot: **OAuth2 → URL Generator** → scopes **`bot`** + **`applications.commands`** → permissions **Manage Roles**, **Send Messages**, **View Channels** → open URL and add to your server. The bot must appear in the member list before `npm run register-commands` works.
 
 In your onboarding channel, run `/setup-onboarding` once.
 

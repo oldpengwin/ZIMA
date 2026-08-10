@@ -1,0 +1,15 @@
+# Discord Bot Dockerfile
+FROM node:18-alpine
+
+# Set work directory
+WORKDIR /app
+
+# Install dependencies
+COPY src/bot/package*.json ./
+RUN npm install
+
+# Copy source files
+COPY src/bot ./
+
+# Run the bot
+CMD ["node", "index.js"]

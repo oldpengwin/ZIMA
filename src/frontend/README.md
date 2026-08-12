@@ -1,137 +1,42 @@
-# ZIMA Frontend - HOPAMINE Brand
+# ZIMA Frontend
 
-This is the React frontend for the ZIMA platform, implementing the HOPAMINE "Eco-Brutalism" design system.
+A React (Vite) single-page app that runs on the **real FastAPI backend** — no
+mocks. Login, profile, the typology quiz, discovery/search, matching, and the
+archetype network all hit live `/api/v1` endpoints.
 
-## Setup
-
-### Prerequisites
-- Node.js v18+ (LTS recommended)
-- npm v9+
-- Backend API running (see main README)
-
-### Installation
+## Run locally
 
 ```bash
 cd src/frontend
 npm install
+npm run dev          # http://localhost:3000
 ```
 
-### Configuration
+The dev server proxies `/api/*` to `http://localhost:8000` (the FastAPI backend),
+so start the backend too. Point the proxy elsewhere with `VITE_API_PROXY`.
 
-Create a `.env` file in the `src/frontend` directory:
+To use the app you need to be logged in:
 
-```env
-REACT_APP_API_URL=http://localhost:8000/api/v1
-```
+- **Discord (real):** click *Continue with Discord*. Set `FRONTEND_URL=http://localhost:3000`
+  on the **backend** so the OAuth callback redirects back here with your token.
+- **Dev login (no Discord):** the landing page has a dev sign-in — it uses the
+  backend's `dev-token` endpoint, which is hard-disabled outside development.
 
-### Running the Development Server
+## Build & deploy
 
 ```bash
-npm start
+npm run build        # -> dist/
+npm run preview      # preview the production build
 ```
 
-This will start the development server on `http://localhost:3000`.
+Deploy `dist/` as static files (Vercel, Netlify, Cloudflare Pages, any host).
+It uses `HashRouter`, so **no SPA rewrite config is needed**. For production set:
 
-### Building for Production
+- `VITE_API_URL` = the deployed API origin (e.g. `https://api.zima.example`).
+- On the backend, `FRONTEND_URL` = this app's deployed origin.
 
-```bash
-npm run build
-```
+## Stack
 
-This creates an optimized build in the `build/` directory.
-
-## Project Structure
-
-```
-src/frontend/
-├── components/          # Reusable UI components
-│   ├── ProfileCard.jsx  # Profile card with neurotype styling
-│   └── ConnectModal.jsx # Connection modal with message templates
-│
-├── pages/              # Page components
-│   └── ProfilePage.jsx  # Detailed profile view
-│
-├── App.jsx             # Main application component
-├── Login.jsx           # Authentication page
-├── index.jsx           # Entry point with routing
-├── api.js              # API client
-├── package.json        # Frontend dependencies
-└── README.md           # This file
-```
-
-## API Integration
-
-The frontend connects to the FastAPI backend through the `api.js` module, which provides:
-
-- `authApi`: Authentication endpoints
-- `profileApi`: Profile management
-- `matchApi`: Matching and connection requests
-- `neurotypeApi`: Neurotype information
-
-All API calls include proper error handling and JWT authentication.
-
-## Design System
-
-The frontend implements the HOPAMINE "Eco-Brutalism" design:
-
-### Colors
-- Sky Blue: `#57B8DC` (Primary)
-- Near-Black: `#131313` (Background)
-- Hot Magenta: `#E93CA7` (Accent)
-- Deep Ocean Blue: `#1E6193` (Secondary)
-- Lime: `#A4C24B` (Accent)
-
-### Typography
-- **The Shout**: Archivo Black / Helvetica Now Black (ALL CAPS)
-- **The Talk**: Oswald Narrow / Roboto Condensed (ALL CAPS)
-- **The Whisper**: Caveat / Ephesis (Magenta, script)
-
-### Layout
-- Swiss-grid discipline
-- Brutalist typography
-- Acid-bright flat colors
-- 1-bit dithered nature imagery
-
-## Routes
-
-- `/`: Main matching interface
-- `/login`: Authentication page
-- `/profile/:profileId`: Detailed profile view
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REACT_APP_API_URL` | Backend API base URL | `http://localhost:8000/api/v1` |
-
-## Testing
-
-Run tests with:
-
-```bash
-npm test
-```
-
-## Linting
-
-```bash
-npm run lint
-```
-
-## Formatting
-
-```bash
-npm run format
-```
-
-## Deployment
-
-The frontend is designed to be served from the backend's static files directory or deployed separately to a CDN.
-
-Build the production bundle:
-
-```bash
-npm run build
-```
-
-Then serve the `build/` directory with your preferred web server.
+Vite + React 18 + React Router 6. No CSS framework — the Hopamine brand design
+system lives in `src/styles/global.css`. No `react-scripts` (and none of its
+CVEs). API client: `src/lib/api.js`; auth: `src/lib/auth.jsx`.

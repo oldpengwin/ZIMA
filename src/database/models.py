@@ -55,11 +55,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func, text as sql_text
 
-try:
-    from pgvector.sqlalchemy import Vector
-except ImportError:  # pragma: no cover - degrades gracefully without pgvector installed
-    Vector = None
-
 Base = declarative_base()
 
 
@@ -125,7 +120,6 @@ class Profile(Base):
     projects = Column(ARRAY(String), default=list, server_default="{}")
     is_open = Column(Boolean, default=True, server_default="true", index=True)
     tagline = Column(String(255))
-    embedding = Column(Vector(384)) if Vector else Column(ARRAY(Float))
     vision_2036 = Column(Text)
     mission = Column(Text)
     badges = Column(ARRAY(String), default=list, server_default="{}")
@@ -253,6 +247,9 @@ class Organization(Base):
     __tablename__ = "organizations"
 
     id = _uuid_pk()
+    # SET NULL like projects: an org survives its creator's account deletion.
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    owner_deleted = Column(Boolean, default=False, server_default="false")
     name = Column(String(200), nullable=False, index=True)
     mission = Column(Text)
     location = Column(String(100))
@@ -269,6 +266,8 @@ class Organization(Base):
     def to_dict(self) -> dict:
         return {
             "id": str(self.id),
+            "owner_id": str(self.owner_id) if self.owner_id else None,
+            "owner_deleted": self.owner_deleted,
             "name": self.name,
             "mission": self.mission,
             "location": self.location,

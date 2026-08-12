@@ -9,28 +9,6 @@ inflated claims, gaps stated as gaps, not silently dropped.
 
 ---
 
-## ⚠️ Security: action required, not optional
-
-`src/features/onboarding/constants.jsx` contained a **hardcoded API key**
-for an unrelated tool (`OMNIROUTE_API_KEY`, a local dev-tooling script that
-has nothing to do with ZIMA — it looks like a stray file that got copied
-into this repo by accident, at a path/extension that made it easy to miss).
-It has been removed from the working tree in this pass, **but it is already
-committed to git history** (commit `a71244b`, on `main`, likely already
-pushed to GitHub given that's where this repo was cloned from). Deleting the
-file does not remove it from history.
-
-1. **Rotate/revoke that key now**, independent of anything else — treat it
-   as compromised the moment it existed in a repo that ever left your
-   machine, regardless of the repo's current visibility setting.
-2. Before this repo (or its history) is ever made public, scrub the key out
-   of history too (`git filter-repo` or BFG Repo-Cleaner), not just the
-   current working tree — a `git rm` + new commit leaves it fully readable
-   in `git log -p` forever.
-3. Check whether this repository is currently public on GitHub. If it is,
-   the key has been exposed since commit `a71244b` regardless of what
-   happens next.
-
 ## Honest current state
 
 Two engineering passes have been done so far, both on the `backend-rebuild`

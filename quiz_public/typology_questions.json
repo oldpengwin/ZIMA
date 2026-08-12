@@ -1,0 +1,448 @@
+{
+  "version": "v1",
+  "title": "The Zima Typology",
+  "description": "Oblique preference questions. No answer maps obviously to a type; each option nudges a weighted vector across the 10 archetypes. Swap this file (bank_v2.json ...) to retune without touching the engine.",
+  "note": "Public copy: questions and answer options only. Scoring weights and the archetype mapping are intentionally omitted — those live in the private bank and the API.",
+  "questions": [
+    {
+      "id": "q01",
+      "prompt": "Free afternoon, no plans. Where do you actually drift to?",
+      "options": [
+        {
+          "id": "a",
+          "label": "The beach — sun, noise, other people"
+        },
+        {
+          "id": "b",
+          "label": "The woods — quiet, bugs, solitude"
+        },
+        {
+          "id": "c",
+          "label": "A workshop or garage with something half-built in it"
+        },
+        {
+          "id": "d",
+          "label": "A rooftop looking at the whole city at once"
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "prompt": "Something in your house breaks. First honest instinct?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Take it apart and fix it myself"
+        },
+        {
+          "id": "b",
+          "label": "Redesign the whole setup so it can't break like that again"
+        },
+        {
+          "id": "c",
+          "label": "Look up why it broke and file that away"
+        },
+        {
+          "id": "d",
+          "label": "Ask around — someone I know has dealt with this"
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "prompt": "Pick a texture you'd want to run your hand over.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Rough-cut wood grain"
+        },
+        {
+          "id": "b",
+          "label": "Cool smooth glass"
+        },
+        {
+          "id": "c",
+          "label": "Soft moss"
+        },
+        {
+          "id": "d",
+          "label": "Handmade paper with a deckled edge"
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "prompt": "You walk into a room full of strangers. What do you clock first?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Who's connected to who — the social wiring"
+        },
+        {
+          "id": "b",
+          "label": "The lighting, the layout, how it's put together"
+        },
+        {
+          "id": "c",
+          "label": "The one interesting object nobody's noticed"
+        },
+        {
+          "id": "d",
+          "label": "The exits and how I'd change the flow of the room"
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "prompt": "A perfect day ends with…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Something I made that didn't exist this morning"
+        },
+        {
+          "id": "b",
+          "label": "A long conversation that changed how I see things"
+        },
+        {
+          "id": "c",
+          "label": "A finished, beautiful thing I'm proud to show"
+        },
+        {
+          "id": "d",
+          "label": "Quiet, and a system that's finally running clean"
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "prompt": "Your relationship with rules is best described as…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Rules are scaffolding — useful until they're not"
+        },
+        {
+          "id": "b",
+          "label": "I like clear rules; they let me build fast"
+        },
+        {
+          "id": "c",
+          "label": "I bend them quietly and let results speak"
+        },
+        {
+          "id": "d",
+          "label": "I'd rather write better ones for everyone"
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "prompt": "Which of these could you lose an entire weekend to?",
+      "options": [
+        {
+          "id": "a",
+          "label": "A garden, a fermentation jar, a slow living thing"
+        },
+        {
+          "id": "b",
+          "label": "A codebase or a mechanism that's *almost* elegant"
+        },
+        {
+          "id": "c",
+          "label": "A story, a zine, an edit that has to land right"
+        },
+        {
+          "id": "d",
+          "label": "A map of how a whole scene fits together"
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "prompt": "Sudden windfall, no strings. What happens?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Fund three people's ideas that deserve a shot"
+        },
+        {
+          "id": "b",
+          "label": "Buy the tools I've been eyeing for years"
+        },
+        {
+          "id": "c",
+          "label": "Buy land and grow something on it"
+        },
+        {
+          "id": "d",
+          "label": "Take time to make one genuinely beautiful thing"
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "prompt": "Pick a weather you feel most yourself in.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Bright, dry, high-energy heat"
+        },
+        {
+          "id": "b",
+          "label": "Grey, still, drizzle — thinking weather"
+        },
+        {
+          "id": "c",
+          "label": "The green hush right after rain"
+        },
+        {
+          "id": "d",
+          "label": "A storm rolling in — something's about to change"
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "prompt": "In a group project you naturally become the person who…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Actually builds the thing"
+        },
+        {
+          "id": "b",
+          "label": "Keeps everyone talking and unblocked"
+        },
+        {
+          "id": "c",
+          "label": "Makes sure it looks and reads right"
+        },
+        {
+          "id": "d",
+          "label": "Sees three steps ahead and re-frames the goal"
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "prompt": "Which small creature do you have a soft spot for?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Bees — tiny, tireless, load-bearing"
+        },
+        {
+          "id": "b",
+          "label": "Mycelium / fungi — invisible networks"
+        },
+        {
+          "id": "c",
+          "label": "Crows — clever tool-users"
+        },
+        {
+          "id": "d",
+          "label": "Fireflies — small signals in the dark"
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "prompt": "What frustrates you most about the world right now?",
+      "options": [
+        {
+          "id": "a",
+          "label": "The systems are rigged and nobody's rewriting them"
+        },
+        {
+          "id": "b",
+          "label": "Good ideas die because nobody could build them"
+        },
+        {
+          "id": "c",
+          "label": "The good work happening stays invisible"
+        },
+        {
+          "id": "d",
+          "label": "We've forgotten how to grow and repair things"
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "prompt": "Your ideal desk setup leans…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Cables, boards, a soldering iron, half a robot"
+        },
+        {
+          "id": "b",
+          "label": "Two monitors, dark theme, everything scripted"
+        },
+        {
+          "id": "c",
+          "label": "Sketchbooks, swatches, good pens"
+        },
+        {
+          "id": "d",
+          "label": "Plants, notebooks, a window to somewhere green"
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "prompt": "When you learn something new, you want to…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Use it to make something immediately"
+        },
+        {
+          "id": "b",
+          "label": "Understand the whole system it sits inside"
+        },
+        {
+          "id": "c",
+          "label": "Teach it / write it up so others get there faster"
+        },
+        {
+          "id": "d",
+          "label": "Imagine what it makes possible that didn't exist"
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "prompt": "Pick the sound that settles you.",
+      "options": [
+        {
+          "id": "a",
+          "label": "A room full of overlapping conversation"
+        },
+        {
+          "id": "b",
+          "label": "Rain and a mechanical keyboard"
+        },
+        {
+          "id": "c",
+          "label": "Wind through leaves"
+        },
+        {
+          "id": "d",
+          "label": "The scratch of a pen or a brush"
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "prompt": "A blank wall is handed to you. You…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Paint something that stops people in the street"
+        },
+        {
+          "id": "b",
+          "label": "Turn it into a working, useful surface"
+        },
+        {
+          "id": "c",
+          "label": "Pin up a map of who's doing what nearby"
+        },
+        {
+          "id": "d",
+          "label": "Write the manifesto that should go there"
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "prompt": "Which compliment would actually land for you?",
+      "options": [
+        {
+          "id": "a",
+          "label": "\"Nobody else would have thought of that.\""
+        },
+        {
+          "id": "b",
+          "label": "\"You actually shipped it.\""
+        },
+        {
+          "id": "c",
+          "label": "\"This held the whole thing together.\""
+        },
+        {
+          "id": "d",
+          "label": "\"This is genuinely beautiful.\""
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "prompt": "Preferred way to move through a new city?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Wander until I understand how it's laid out"
+        },
+        {
+          "id": "b",
+          "label": "Find the makers, markets and workshops"
+        },
+        {
+          "id": "c",
+          "label": "Meet locals, get pulled into their plans"
+        },
+        {
+          "id": "d",
+          "label": "Photograph and document the whole thing"
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "prompt": "You're happiest when a plan is…",
+      "options": [
+        {
+          "id": "a",
+          "label": "Loose — room for the unexpected"
+        },
+        {
+          "id": "b",
+          "label": "Tight and well-specified"
+        },
+        {
+          "id": "c",
+          "label": "Grown, not planned — it evolves"
+        },
+        {
+          "id": "d",
+          "label": "Ambitious enough to scare people a little"
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "prompt": "Last one — which of these is closest to how you'd describe your role, even off the clock?",
+      "options": [
+        {
+          "id": "a",
+          "label": "The one who starts things"
+        },
+        {
+          "id": "b",
+          "label": "The one who builds things"
+        },
+        {
+          "id": "c",
+          "label": "The one who connects things"
+        },
+        {
+          "id": "d",
+          "label": "The one who changes things"
+        }
+      ]
+    }
+  ]
+}

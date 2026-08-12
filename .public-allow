@@ -1,0 +1,21 @@
+# .public-allow — files published to the PUBLIC mirror (oldpengwin/zima-showcase)
+#
+# DENY-BY-DEFAULT: a file is private unless it is matched here. Adding a line
+# PUBLISHES code to the world — treat every addition as a deliberate act.
+# `.public-deny` always wins over anything listed here (secrets/IP fuse).
+#
+# Syntax (gitignore-style, root-anchored):
+#   demo/**        everything under demo/, any depth
+#   README.md      exactly this file at repo root
+#   **/*.md        this pattern anywhere
+#
+# Run `python scripts/classify_public.py --summary` to see the current split,
+# or `python scripts/classify_public.py` to classify new files interactively.
+
+# ── Public showcase: the live demo the world already sees on Vercel ──
+demo/**
+
+# ── Curated public docs ──
+README.md
+Archetypes.md
+LICENSE

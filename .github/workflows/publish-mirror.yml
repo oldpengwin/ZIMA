@@ -1,0 +1,93 @@
+name: Publish public mirror
+
+# Publishes ONLY the allowlisted (public-tier) files from this PRIVATE repo to
+# the PUBLIC mirror repo. Deny-by-default is enforced by scripts/classify_public.py:
+# nothing is published unless it is on .public-allow and not on .public-deny.
+#
+# The mirror receives a clean tree built fresh from the allowlist on every run,
+# so no private file, path, or commit message can ever bleed into its history.
+#
+# One-time setup (see docs/PUBLIC_MIRROR.md):
+#   1. Create the empty public repo (e.g. oldpengwin/zima-showcase).
+#   2. Add repo secret MIRROR_PUSH_TOKEN — a fine-grained PAT with
+#      Contents: read/write on the mirror repo only.
+#   3. (Optional) set the MIRROR_REPO env below if you name it differently.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  MIRROR_REPO: oldpengwin/zima-showcase
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Gate — every tracked file must be classified, no allow/deny conflicts
+        run: python scripts/classify_public.py --check
+
+      - name: Build the public tree (allowlist minus denylist only)
+        run: |
+          set -euo pipefail
+          rm -rf _public_out
+          mkdir -p _public_out
+          python scripts/classify_public.py --list > _public_files.txt
+          if [ ! -s _public_files.txt ]; then
+            echo "No public files resolved — refusing to publish an empty mirror." >&2
+            exit 1
+          fi
+          echo "Publishing $(wc -l < _public_files.txt) file(s):"
+          cat _public_files.txt
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            cp --parents "$f" _public_out/
+          done < _public_files.txt
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          VER=8.18.4
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Secret-scan the outgoing tree (last fuse before it goes public)
+        run: gitleaks detect --no-git --source _public_out --redact --verbose
+
+      - name: Push to public mirror (clean tree, public-only history)
+        env:
+          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_PUSH_TOKEN}" ]; then
+            echo "MIRROR_PUSH_TOKEN not set — see docs/PUBLIC_MIRROR.md setup." >&2
+            exit 1
+          fi
+          git clone --depth 1 "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${MIRROR_REPO}.git" _mirror
+          # Replace the mirror's tracked contents wholesale with the freshly built
+          # public tree, so a file removed from the allowlist also disappears there.
+          ( cd _mirror && git rm -rqf . 2>/dev/null || true )
+          cp -r _public_out/. _mirror/
+          cd _mirror
+          git config user.name "zima-mirror-bot"
+          git config user.email "mirror-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+            exit 0
+          fi
+          git commit -m "Sync public mirror from private repo @ ${GITHUB_SHA::7}"
+          git push origin HEAD:main

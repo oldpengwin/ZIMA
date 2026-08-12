@@ -1,0 +1,61 @@
+# .public-exclude — files a human has REVIEWED and deliberately kept private.
+#
+# Unlike .public-deny (a permanent fuse for whole categories), this is where
+# `python scripts/classify_public.py` records case-by-case "keep private"
+# decisions, so it won't ask about the same file twice and `--check` stays
+# green. Deny-by-default already keeps these private; listing them here just
+# marks them as consciously-decided rather than merely un-reviewed.
+#
+# You normally don't edit this by hand — the interactive classifier appends to it.
+.github/workflows/ci-cd.yml
+.github/workflows/publish-mirror.yml
+.gitignore
+.public-allow
+.public-deny
+.public-exclude
+Dockerfile.backend
+Dockerfile.bot
+Dockerfile.frontend
+_legacy_serverless/README.txt
+_legacy_serverless/interactions.js
+alembic.ini
+docker-compose.yml
+migrations/README
+migrations/env.py
+migrations/script.py.mako
+nginx.conf
+package-lock.json
+package.json
+requirements.txt
+scripts/classify_public.py
+src/api/routes.py
+src/bot/cogs/matching.py
+src/config.js
+src/core/profile_manager.py
+src/database/models.py
+src/db/supabase.js
+src/features/onboarding/components.js
+src/features/onboarding/constants.js
+src/features/onboarding/flow.js
+src/frontend/App.jsx
+src/frontend/Login.jsx
+src/frontend/ProfilePage.jsx
+src/frontend/README.md
+src/frontend/api.js
+src/frontend/components/ConnectModal.jsx
+src/frontend/components/ProfileCard.jsx
+src/frontend/index.jsx
+src/frontend/package.json
+src/handlers/guildMemberAdd.js
+src/handlers/interactionCreate.js
+src/index.js
+src/main.py
+src/register-commands.js
+src/roles/roleManager.js
+supabase/schema.sql
+tests/backend/test_api_routes.py
+tests/backend/test_neurotype_matcher.py
+tests/backend/test_profile_manager.py
+tests/frontend/test_api_client.js
+tests/test_classify_public.py
+vercel.json

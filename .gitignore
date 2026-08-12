@@ -1,5 +1,35 @@
-node_modules/
+# Environment / secrets
 .env
-*.log
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Frontend build output
+src/frontend/build/
+src/frontend/dist/
+
+# Editors / OS
 .DS_Store
+*.log
+.vscode/
+.idea/
+
+# This tool's own scratch space
 .claude/worktrees/
+_public_out/
+_public_files.txt
+_mirror/

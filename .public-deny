@@ -1,0 +1,27 @@
+# .public-deny — the HARD FUSE. Anything matched here can NEVER reach the
+# public mirror, even if it is also (accidentally) on .public-allow.
+#
+# This is defense-in-depth, not the primary control (deny-by-default already
+# keeps unlisted files private). It exists so a careless allow-line for a
+# broad glob (e.g. `src/**`) still cannot drag a secret or the core IP out.
+#
+# Keep this list blunt and permanent. Add categories, not one-offs.
+
+# ── Secrets / credentials (must never be public, period) ──
+**/.env
+**/.env.*
+**/*secret*
+**/*.key
+**/*.pem
+**/*.p12
+**/id_rsa*
+
+# ── Core intellectual property: the matching algorithm & its weights ──
+src/core/neurotype_matcher.py
+src/services/matching_service.py
+
+# ── Internal-only docs (honest status, roadmap, internal summaries) ──
+README.internal.md
+IMPLEMENTATION_PLAN.md
+REPOSITORY_SUMMARY.md
+docs/PUBLIC_MIRROR.md

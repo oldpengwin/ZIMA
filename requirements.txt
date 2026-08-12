@@ -9,6 +9,7 @@
 fastapi==0.109.2
 uvicorn==0.27.1
 python-dotenv==1.2.2          # was 1.0.0 (CVE-2026-28684); de-duplicated (was listed twice)
+python-dotenv==1.2.2
 
 # Database
 psycopg2-binary==2.9.10        # was 2.9.9 (adds cp313 wheels; no source build needed)
@@ -29,16 +30,41 @@ email-validator==2.1.0
 python-multipart==0.0.31       # was 0.0.6 (multipart DoS chain, CVE-2024-24762 .. CVE-2026-53540). FastAPI form-parse dep; ships the `multipart` import shim so it stays compatible
 
 # Redis + rate limiting
+authlib==1.6.12
+python-jose==3.4.0
+passlib==1.7.4
+bcrypt==4.1.2
+
+# API Documentation
+email-validator==2.1.0
+python-multipart==0.0.31
+
+# Logging
+loguru==0.7.2
+
+# Environment
+python-dotenv==1.2.2
+
+# AI/ML
+sentence-transformers==2.2.2
+transformers==5.5.0
+torch==2.13.0
+google-generativeai==0.5.2
+
+# Redis
 redis==5.0.1
 slowapi==0.1.8                 # wired in src/main.py
 
 # WSGI server (production)
 gunicorn==23.0.0               # was 21.2.0 (CVE-2024-1135 request smuggling, CVE-2024-6827)
+# Development
+gunicorn==22.0.0
 
 # Testing / seed data
 # httpx is also a RUNTIME dep now (src/core/auth.py uses it for the real Discord
 # OAuth2 token exchange), not just the test client.
 pytest==8.0.0                  # NOTE: CVE-2025-71176 (dev-only, low) is fixed in 9.0.3 — a pytest major bump; left for a tested upgrade
+pytest==9.0.3
 httpx==0.26.0
 pytest-asyncio==0.23.5
 Faker==24.4.0

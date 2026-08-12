@@ -9,8 +9,9 @@ name: Publish public mirror
 #
 # One-time setup (see docs/PUBLIC_MIRROR.md):
 #   1. Create the empty public repo (e.g. oldpengwin/zima-showcase).
-#   2. Add repo secret MIRROR_PUSH_TOKEN — a fine-grained PAT with
-#      Contents: read/write on the mirror repo only.
+#   2. Generate an SSH keypair; add the PUBLIC half as a WRITE deploy key on the
+#      mirror repo, and store the PRIVATE half as the secret MIRROR_DEPLOY_KEY on
+#      this repo. (A scoped deploy key — not a personal PAT.)
 #   3. (Optional) set the MIRROR_REPO env below if you name it differently.
 
 on:
@@ -69,14 +70,20 @@ jobs:
 
       - name: Push to public mirror (clean tree, public-only history)
         env:
-          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+          MIRROR_DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${MIRROR_PUSH_TOKEN}" ]; then
-            echo "MIRROR_PUSH_TOKEN not set — see docs/PUBLIC_MIRROR.md setup." >&2
+          if [ -z "${MIRROR_DEPLOY_KEY}" ]; then
+            echo "MIRROR_DEPLOY_KEY not set — see docs/PUBLIC_MIRROR.md setup." >&2
             exit 1
           fi
-          git clone --depth 1 "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${MIRROR_REPO}.git" _mirror
+          # Write-scoped SSH deploy key for the mirror repo only (not a personal PAT).
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "${MIRROR_DEPLOY_KEY}" > "$HOME/.ssh/mirror_key"
+          chmod 600 "$HOME/.ssh/mirror_key"
+          ssh-keyscan -t ed25519,rsa github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/mirror_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          git clone --depth 1 "git@github.com:${MIRROR_REPO}.git" _mirror
           # Replace the mirror's tracked contents wholesale with the freshly built
           # public tree, so a file removed from the allowlist also disappears there.
           ( cd _mirror && git rm -rqf . 2>/dev/null || true )

@@ -76,21 +76,23 @@ also removes it from the mirror on the next run.
 
 ## One-time setup
 
-1. **Create the public repo** (empty, no README):
+1. **Create the public repo** (empty, no README) — already done for
+   `oldpengwin/zima-showcase`:
    ```bash
-   gh repo create oldpengwin/zima-showcase --public --description "Public mirror of ZIMA — source-available showcase"
+   gh repo create oldpengwin/zima-showcase --public --description "Public mirror of ZIMA"
    ```
-   (or via the GitHub UI). If you name it differently, update `MIRROR_REPO` in
-   the workflow's `env:` block.
+   If you name it differently, update `MIRROR_REPO` in the workflow's `env:` block.
 
-2. **Create a scoped push token.** GitHub → Settings → Developer settings →
-   Fine-grained tokens: grant **Contents: read and write** on `zima-showcase`
-   only. Copy it.
-
-3. **Add it as a secret on the PRIVATE repo:**
+2. **Set up a write-scoped deploy key** (a scoped SSH key for the mirror repo
+   only — not a personal PAT). From the repo root:
    ```bash
-   gh secret set MIRROR_PUSH_TOKEN --repo oldpengwin/ZIMA
+   ssh-keygen -t ed25519 -N "" -C "zima-mirror-sync" -f mirror_key
+   gh repo deploy-key add mirror_key.pub --repo oldpengwin/zima-showcase --title zima-mirror-sync --allow-write
+   gh secret set MIRROR_DEPLOY_KEY --repo oldpengwin/ZIMA < mirror_key
+   rm -f mirror_key mirror_key.pub          # delete the local copies once the secret is set
    ```
+   The private half lives only as the `MIRROR_DEPLOY_KEY` secret; the public
+   half is a write deploy key on the mirror. Neither is your personal token.
 
 4. **Classify the existing tree once** (locally, from the private repo root):
    ```bash

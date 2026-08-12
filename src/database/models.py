@@ -111,7 +111,15 @@ class Profile(Base):
     onboarding_completed_at = Column(DateTime(timezone=True))
 
     # Richer product/matching fields, filled in later via the web app.
-    neurotype = Column(String(20), index=True)  # nullable until quiz is taken
+    # Two neurotypes by design: `assessed_neurotype` is what the typology quiz
+    # + skills compute (the system's judgement), `identified_neurotype` is what
+    # the person self-selects at the end (their chosen identity). Both surface
+    # as separate badges. `neurotype` is kept as a back-compat alias = the
+    # identified one (falling back to assessed), so existing readers/graph code
+    # that reads `neurotype` keep working.
+    neurotype = Column(String(20), index=True)  # nullable until quiz is taken; = identified or assessed
+    assessed_neurotype = Column(String(20), index=True)   # computed by the quiz engine
+    identified_neurotype = Column(String(20), index=True)  # self-selected
     offering = Column(ARRAY(String), default=list, server_default="{}")
     looking_for = Column(ARRAY(String), default=list, server_default="{}")
     projects = Column(ARRAY(String), default=list, server_default="{}")
@@ -145,6 +153,8 @@ class Profile(Base):
             "links": self.links or [],
             "onboarding_completed_at": self.onboarding_completed_at.isoformat() if self.onboarding_completed_at else None,
             "neurotype": self.neurotype,
+            "assessed_neurotype": self.assessed_neurotype,
+            "identified_neurotype": self.identified_neurotype,
             "offering": self.offering or [],
             "looking_for": self.looking_for or [],
             "projects": self.projects or [],
@@ -544,6 +554,40 @@ class ProfileMatchStats(Base):
             "avg_match_score": self.avg_match_score,
             "top_match_profile_id": str(self.top_match_profile_id) if self.top_match_profile_id else None,
             "computed_at": self.computed_at.isoformat() if self.computed_at else None,
+        }
+
+
+class QuizResponse(Base):
+    """One neurotype-typology submission. Append-only — a new row per
+    submission, never updated in place — so that when the question bank is
+    swapped/retuned you can re-score old answers and check whether people's
+    self-identified type still aligns with the assessed one over time (the
+    "keep changing them and testing if things align" requirement). Stores the
+    CLEANED answers and the full per-type score breakdown, keyed to the
+    profile; CASCADE so it's purged with the account."""
+
+    __tablename__ = "quiz_responses"
+
+    id = _uuid_pk()
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_version = Column(String(20), nullable=False)
+    answers = Column(JSON, nullable=False, default=dict, server_default="{}")   # cleaned {question_id: option_id}
+    scores = Column(JSON, nullable=False, default=dict, server_default="{}")     # combined per-type scores
+    assessed_neurotype = Column(String(20), nullable=True)    # top type computed from this submission
+    identified_neurotype = Column(String(20), nullable=True)  # self-selected (nullable until they pick)
+    source = Column(String(20), default="web", server_default="web")  # web | discord
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "profile_id": str(self.profile_id),
+            "quiz_version": self.quiz_version,
+            "assessed_neurotype": self.assessed_neurotype,
+            "identified_neurotype": self.identified_neurotype,
+            "scores": self.scores or {},
+            "source": self.source,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

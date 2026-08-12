@@ -1,6 +1,7 @@
-import { MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { getProfileByDiscordId, upsertProfile } from '../../db/supabase.js';
 import { grantRole, RoleGrantError } from '../../roles/roleManager.js';
+import { QUIZ_IDS } from '../quiz/constants.js';
 import {
   buildProfileModal,
   buildStartRow,
@@ -61,11 +62,20 @@ export async function handleProfileModal(interaction) {
       metadata: { display_name: displayName },
     });
 
+    const quizButton = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(QUIZ_IDS.START)
+        .setLabel('Take the typology quiz')
+        .setStyle(ButtonStyle.Success),
+    );
     return interaction.editReply({
       content: [
         `Thanks, **${displayName}**! Your profile is saved.`,
         `You have been given the **Vetted** role. Welcome aboard.`,
+        '',
+        'Next: find your archetype. Take the typology quiz below (or run `/quiz` anytime).',
       ].join('\n'),
+      components: [quizButton],
     });
   } catch (err) {
     console.error('Onboarding failed:', err);

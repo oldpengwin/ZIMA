@@ -31,6 +31,10 @@ export const config = {
   vettedRoleId: required('VETTED_ROLE_ID'),
   supabaseUrl: required('SUPABASE_URL'),
   supabaseServiceKey: required('SUPABASE_SERVICE_ROLE_KEY'),
+  // Python API (neurotype quiz scoring, network). Optional so the bot still
+  // boots without them; the quiz feature reports itself unavailable if unset.
+  apiBaseUrl: env('API_BASE_URL', 'ZIMA_API_URL') || 'http://localhost:8000',
+  botApiKey: env('BOT_API_KEY') || '',
 };
 
 /** Role keys map to Discord role IDs — extend for quest rewards later */

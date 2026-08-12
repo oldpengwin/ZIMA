@@ -295,3 +295,80 @@ def test_profile_roles_endpoint_reflects_role_grants_table():
     assert len(roles) == 1
     assert roles[0]["role_key"] == "vetted"
     assert roles[0]["discord_id"] == discord_id
+
+
+# ─────────────────── neurotype quiz + network (feature: neurotype-quiz) ───────────────────
+
+
+def test_quiz_bank_is_weight_free():
+    resp = client.get("/api/v1/quiz")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["version"] == "v1"
+    assert len(data["questions"]) == 20
+    for q in data["questions"]:
+        for o in q["options"]:
+            assert "weights" not in o  # scoring weights must never leave the server
+
+
+def test_neurotypes_enriched_with_graph_metadata():
+    resp = client.get("/api/v1/neurotypes")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["neurotypes"]) == 10
+    dev = data["neurotypes"]["developer"]
+    assert dev["emoji"] and dev["color"]["base"] and dev["tagline"]
+    assert data["edges"]  # graph edges present
+
+
+def test_quiz_submit_sets_assessed_then_self_select_identified():
+    discord_id = str(uuid.uuid4().int)[:18]
+    headers = _auth_headers(discord_id)
+    client.post("/api/v1/profiles", headers=headers, json={"display_name": "Quizzer", "skills": ["python", "devops"]})
+
+    resp = client.post(
+        "/api/v1/quiz/submit",
+        headers=headers,
+        json={"answers": {"q01": "c", "q02": "a", "q13": "a"}},  # fabricant-leaning + dev skills
+    )
+    assert resp.status_code == 200, resp.text
+    top = resp.json()["result"]["top"]
+    assert top is not None
+
+    me = client.get("/api/v1/profiles/me", headers=headers).json()
+    assert me["assessed_neurotype"] == top
+
+    pid = me["id"]
+    sel = client.put(
+        f"/api/v1/profiles/{pid}/identified-neurotype", headers=headers, json={"neurotype": "mycelian"}
+    )
+    assert sel.status_code == 200
+    assert sel.json()["identified_neurotype"] == "mycelian"
+    assert sel.json()["neurotype"] == "mycelian"  # alias follows the chosen identity
+
+
+def test_quiz_submit_requires_auth():
+    assert client.post("/api/v1/quiz/submit", json={"answers": {}}).status_code == 401
+
+
+def test_set_identified_rejects_unknown_type():
+    discord_id = str(uuid.uuid4().int)[:18]
+    headers = _auth_headers(discord_id)
+    pid = client.post("/api/v1/profiles", headers=headers, json={"display_name": "Picky"}).json()["id"]
+    bad = client.put(f"/api/v1/profiles/{pid}/identified-neurotype", headers=headers, json={"neurotype": "wizard"})
+    assert bad.status_code == 400
+
+
+def test_network_aggregate_is_public_safe():
+    resp = client.get("/api/v1/network")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["nodes"]) == 10
+    assert "edges" in data and "total_builders" in data
+    for point in data["location_points"]:
+        assert "discord_id" not in point  # globe must never carry identity
+
+
+def test_bot_quiz_submit_requires_service_key():
+    r = client.post("/api/v1/bot/quiz/submit", json={"discord_id": "123", "answers": {}})
+    assert r.status_code == 401

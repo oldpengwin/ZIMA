@@ -31,17 +31,20 @@ from src.core.auth import (
     discord_authorize_url,
     exchange_discord_code,
     get_current_user,
+    require_bot_service,
 )
 from src.core import discord_client
+from src.core import neurotypes as neurotype_registry
 from src.core.config import get_settings
-from src.core.neurotype_matcher import Neurotype
 from src.db.session import get_db
 from src.services import (
     connection_service,
     matching_service,
+    network_service,
     privacy_service,
     profile_service,
     project_service,
+    quiz_service,
     role_service,
     stats_service,
 )
@@ -487,32 +490,133 @@ async def admin_delete_user(
     return report
 
 
-# ─────────────────────────────────── Neurotypes ───────────────────────────────────
+# ─────────────────────────────────── Neurotypes & network ───────────────────────────────────
 
 
 @router.get("/neurotypes", response_model=Dict[str, Any])
 async def get_neurotypes() -> Dict[str, Any]:
-    neurotypes = {}
-    for neurotype in Neurotype:
-        neurotypes[neurotype.value] = {
-            "id": neurotype.value,
-            "name": neurotype.name,
-            "description": _neurotype_description(neurotype),
-        }
-    return {"neurotypes": neurotypes}
-
-
-def _neurotype_description(neurotype: Neurotype) -> str:
-    descriptions = {
-        Neurotype.SEEDCASTER: "They plant what others haven't imagined yet.",
-        Neurotype.FABRICANT: "If it doesn't exist, they build it.",
-        Neurotype.MYCELIAN: "They think in networks and grow in the dark.",
-        Neurotype.TERRAFORMER: "They redesign the spaces we inhabit.",
-        Neurotype.DEVELOPER: "They write the tools of sovereignty.",
-        Neurotype.ARTISAN: "They make the future beautiful enough to want.",
-        Neurotype.CHRONICLER: "They make sure the work gets seen.",
-        Neurotype.CULTIVAR: "They bridge the lab and the land.",
-        Neurotype.LOOMKEEPER: "They hold the network together.",
-        Neurotype.VERDANT: "They change the rules of the game.",
+    """Canonical archetype registry — presentation + graph metadata (emoji,
+    colours, tagline, connections). The backend is the single source of truth
+    so the globe, cards, Discord and web all render the same definitions.
+    Static + cheap; safe for clients to cache hard."""
+    return {
+        "neurotypes": {n["id"]: n for n in neurotype_registry.all_neurotypes()},
+        "order": list(neurotype_registry.NEUROTYPE_IDS),
+        "edges": [{"source": a, "target": b} for a, b in neurotype_registry.edges()],
     }
-    return descriptions.get(neurotype, "Unknown neurotype")
+
+
+@router.get("/network", response_model=Dict[str, Any])
+async def get_network(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Cached, public-safe archetype-network aggregate for the globe: per-type
+    counts, graph edges, and location points (display_name + neurotype + city
+    only — never discord_id). Recomputed at most once per TTL / on write, so
+    polling it never churns the DB."""
+    return network_service.get_network(db)
+
+
+# ─────────────────────────────────── Neurotype quiz ───────────────────────────────────
+
+
+@router.get("/quiz", response_model=Dict[str, Any])
+async def get_quiz(version: str = Query("v1", pattern=r"^v[0-9]{1,4}$")) -> Dict[str, Any]:
+    """The weight-free question bank to render (Discord or web). Scoring weights
+    are never exposed, so the archetype mapping isn't guessable from the payload."""
+    try:
+        return quiz_service.get_public_quiz(version)
+    except quiz_service.QuizServiceError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+
+
+def _run_quiz_submit(db: Session, profile_id: str, body: Dict[str, Any], source: str) -> Dict[str, Any]:
+    identified = body.get("identified") or body.get("identified_neurotype")
+    try:
+        return quiz_service.submit_quiz(
+            db,
+            profile_id,
+            body.get("answers"),
+            identified=identified,
+            source=source,
+            version=str(body.get("version", "v1")),
+        )
+    except quiz_service.QuizServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/quiz/submit", response_model=Dict[str, Any])
+async def submit_quiz(
+    body: Dict[str, Any],
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Submit the authenticated user's own quiz (web path). Answers are cleaned
+    by the engine — unknown question/option ids are dropped, never stored."""
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
+    return _run_quiz_submit(db, str(profile.id), body, source="web")
+
+
+@router.post("/bot/quiz/submit", response_model=Dict[str, Any])
+async def bot_submit_quiz(
+    body: Dict[str, Any],
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: submit a quiz for a given discord_id. Guarded
+    by the X-Bot-Key service key (see core/auth.require_bot_service)."""
+    discord_id = body.get("discord_id")
+    if not discord_id or not isinstance(discord_id, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="discord_id is required")
+    profile = profile_service.get_profile_by_discord_id(db, discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile for that discord_id (onboard first)")
+    return _run_quiz_submit(db, str(profile.id), body, source="discord")
+
+
+@router.post("/bot/profiles/identified", response_model=Dict[str, Any])
+async def bot_set_identified(
+    body: Dict[str, Any],
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: set a builder's self-identified badge after
+    they pick it at the end of the quiz. Guarded by the X-Bot-Key service key."""
+    discord_id = body.get("discord_id")
+    identified = body.get("neurotype") or body.get("identified")
+    if not discord_id or not isinstance(discord_id, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="discord_id is required")
+    if not identified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="neurotype is required")
+    profile = profile_service.get_profile_by_discord_id(db, discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile for that discord_id")
+    try:
+        updated = quiz_service.set_identified_neurotype(db, str(profile.id), identified)
+    except quiz_service.QuizServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return updated.to_dict()
+
+
+@router.put("/profiles/{profile_id}/identified-neurotype", response_model=Dict[str, Any])
+async def set_identified_neurotype(
+    profile_id: str,
+    body: Dict[str, str],
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Owner sets their self-identified badge (e.g. after seeing the assessed
+    result). Owner-only."""
+    profile = profile_service.get_profile_by_id(db, profile_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    if profile.discord_id != current_user.discord_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only set your own neurotype")
+    identified = body.get("neurotype") or body.get("identified")
+    if not identified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="neurotype is required")
+    try:
+        updated = quiz_service.set_identified_neurotype(db, profile_id, identified)
+    except quiz_service.QuizServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return updated.to_dict()

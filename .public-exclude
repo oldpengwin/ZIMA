@@ -86,3 +86,16 @@ tests/backend/test_matching_service.py
 tests/backend/test_privacy_service.py
 tests/backend/test_profile_service.py
 tests/backend/test_stats_service.py
+migrations/versions/f1a2b3c4d5e6_neurotype_quiz_two_types.py
+src/core/cache.py
+src/core/neurotypes.py
+src/features/quiz/api.js
+src/features/quiz/constants.js
+src/features/quiz/flow.js
+src/features/quiz/session.js
+src/quiz/__init__.py
+src/quiz/bank_v1.json
+src/quiz/engine.py
+src/services/network_service.py
+src/services/quiz_service.py
+tests/backend/test_quiz_engine.py

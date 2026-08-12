@@ -20,6 +20,7 @@ hard-disabled whenever ENVIRONMENT=production (see config.Settings) so it
 can never ship live.
 """
 
+import hmac
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -27,7 +28,7 @@ from typing import Optional
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
@@ -80,6 +81,18 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> TokenData
             headers={"WWW-Authenticate": "Bearer"},
         )
     return decode_access_token(token)
+
+
+def require_bot_service(x_bot_key: Optional[str] = Header(default=None, alias="X-Bot-Key")) -> None:
+    """Auth gate for the Discord-bot -> API service endpoints (/bot/*). Compares
+    the X-Bot-Key header to BOT_API_KEY in constant time. Fail-closed: if the
+    key isn't configured, or is missing/wrong, every caller is rejected."""
+    expected = get_settings().bot_api_key
+    if not expected or not x_bot_key or not hmac.compare_digest(str(x_bot_key), expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing bot service key",
+        )
 
 
 def discord_authorize_url(state: str) -> str:

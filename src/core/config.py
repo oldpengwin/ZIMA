@@ -92,6 +92,16 @@ class Settings:
 
         self.frontend_url: str = os.getenv("FRONTEND_URL", "")
 
+        # Service key for the Discord bot -> API path (e.g. submitting a quiz on
+        # behalf of a Discord user). Compared in constant time; if unset, the
+        # bot service endpoints reject every caller (fail-closed).
+        self.bot_api_key: str = os.getenv("BOT_API_KEY", "")
+        if not self.bot_api_key and self.is_production:
+            logger.warning(
+                "BOT_API_KEY is not set — the Discord bot service endpoints "
+                "(/api/v1/bot/*) will reject all callers until it is configured."
+            )
+
     def _require_or_dev_default(self, key: str, dev_default: str) -> str:
         value = os.getenv(key)
         if value:

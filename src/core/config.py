@@ -29,8 +29,30 @@ class Settings:
     anything missing in development gets a loudly-logged fallback.
     """
 
+    VALID_ENVIRONMENTS = {"development", "test", "production"}
+
     def __init__(self) -> None:
-        self.environment: str = os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development")).lower()
+        # Fail-closed on environment resolution. Previously this defaulted to
+        # "development" when ENVIRONMENT/NODE_ENV were both unset — which
+        # silently enabled the /auth/dev-token backdoor and a throwaway
+        # SECRET_KEY. A deploy that simply forgot to set ENVIRONMENT would come
+        # up wide open. Now an unset or unrecognized environment refuses to
+        # start, so the insecure mode can only ever be reached by an explicit,
+        # visible choice.
+        raw_env = os.getenv("ENVIRONMENT") or os.getenv("NODE_ENV")
+        if not raw_env or not raw_env.strip():
+            raise ConfigError(
+                "ENVIRONMENT is not set. Refusing to start with an ambiguous environment: a "
+                "silent 'development' default would enable the /api/v1/auth/dev-token backdoor "
+                "and a throwaway SECRET_KEY. Set ENVIRONMENT to one of "
+                f"{sorted(self.VALID_ENVIRONMENTS)} (use 'development' locally, 'production' live)."
+            )
+        self.environment: str = raw_env.strip().lower()
+        if self.environment not in self.VALID_ENVIRONMENTS:
+            raise ConfigError(
+                f"ENVIRONMENT={self.environment!r} is not recognized. "
+                f"Use one of {sorted(self.VALID_ENVIRONMENTS)}."
+            )
         self.is_production: bool = self.environment == "production"
 
         self.database_url: str = self._require_or_dev_default(
@@ -75,6 +97,23 @@ class Settings:
                 "skipped with a logged warning, not silently no-op'd. Set DISCORD_BOT_TOKEN "
                 "(same value as the bot's DISCORD_TOKEN) to enable them."
             )
+
+        # Admin authorization (see core/auth.require_admin). Comma-separated Discord
+        # ids allowed to call admin endpoints (e.g. DELETE /api/v1/admin/users/{id}).
+        # Empty => nobody is an admin (fail-closed), so a forgotten config locks the
+        # admin surface down rather than leaving it open to any logged-in user.
+        admin_ids_raw = os.getenv("ADMIN_DISCORD_IDS", "")
+        self.admin_discord_ids: List[str] = [i.strip() for i in admin_ids_raw.split(",") if i.strip()]
+        if self.is_production and not self.admin_discord_ids:
+            logger.warning(
+                "ADMIN_DISCORD_IDS is empty in production — every admin endpoint will reject "
+                "ALL callers. Set it to the comma-separated Discord ids allowed to act as admins."
+            )
+
+        # Rate limiting (see main.py). Global default limit; only enforced in production
+        # so local/test runs and the test suite aren't throttled.
+        self.rate_limit_requests: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+        self.rate_limit_window_minutes: int = int(os.getenv("RATE_LIMIT_WINDOW", "15"))
 
         # Dev-only password login backdoor (see core/auth.py). Never available in production.
         self.dev_auth_enabled: bool = not self.is_production

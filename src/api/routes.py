@@ -31,6 +31,7 @@ from src.core.auth import (
     discord_authorize_url,
     exchange_discord_code,
     get_current_user,
+    require_admin,
 )
 from src.core import discord_client
 from src.core.config import get_settings
@@ -189,15 +190,27 @@ async def get_my_profile(
 
 
 @router.get("/profiles/{profile_id}", response_model=Dict[str, Any])
-async def get_profile(profile_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_profile(
+    profile_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     profile = profile_service.get_profile_by_id(db, profile_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return profile.to_dict()
+    # Your own profile: full record (includes discord_id). Anyone else's: the
+    # public view, which omits discord_id so it can't be enumerated by others.
+    if profile.discord_id == current_user.discord_id:
+        return profile.to_dict()
+    return profile.to_public_dict()
 
 
 @router.get("/profiles/{profile_id}/stats", response_model=Dict[str, Any])
-async def get_profile_stats(profile_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_profile_stats(
+    profile_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """Precomputed aggregate numbers (connections/projects/match summary) —
     see services/stats_service.py. A single indexed read; the first-ever
     call for a profile computes and caches it, every call after is free
@@ -231,13 +244,24 @@ async def update_profile(
 
 
 @router.get("/profiles/{profile_id}/roles", response_model=List[Dict[str, Any]])
-async def get_profile_roles(profile_id: str, db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+async def get_profile_roles(
+    profile_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """Discord role grant history for a profile — written by the Node bot
     (src/roles/roleManager.js) directly to the shared database, read here
-    for the first time. See services/role_service.py."""
+    for the first time. See services/role_service.py. Restricted to the
+    profile's owner or an admin: the payload exposes discord_id and role
+    history, which must not be readable for arbitrary other users."""
     profile = profile_service.get_profile_by_id(db, profile_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    settings = get_settings()
+    is_self = profile.discord_id == current_user.discord_id
+    is_admin = current_user.discord_id in settings.admin_discord_ids
+    if not (is_self or is_admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only view your own role history")
     return [r.to_dict() for r in role_service.get_role_grants_for_discord_id(db, profile.discord_id)]
 
 
@@ -246,13 +270,16 @@ async def search_profiles(
     q: Optional[str] = Query(None, min_length=2),
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
+    current_user: TokenData = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[Dict[str, Any]]:
+    # Authenticated-only, and public view (no discord_id) so the userbase can't
+    # be scraped for real Discord identifiers.
     if q:
         profiles = profile_service.search_profiles(db, q, limit, offset)
     else:
         profiles = profile_service.get_all_profiles(db, limit, offset)
-    return [p.to_dict() for p in profiles]
+    return [p.to_public_dict() for p in profiles]
 
 
 # ─────────────────────────────────── Matching ───────────────────────────────────
@@ -464,16 +491,14 @@ async def delete_my_account(
 @router.delete("/admin/users/{profile_id}", response_model=Dict[str, Any])
 async def admin_delete_user(
     profile_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Admin-triggered deletion (e.g. for testing, or acting on a support
-    request). TODO(next pass): real role-based authorization — today any
-    authenticated user can call this, which is only acceptable because it's
-    not exposed publicly yet. Flagged here rather than silently shipped."""
-    logger.warning(
-        "admin_delete_user called by discord_id=%s for profile_id=%s — "
-        "role-based authorization is NOT YET implemented for this endpoint.",
+    """Admin-triggered deletion (e.g. acting on a support request). Guarded by
+    require_admin: the caller's Discord id must be in ADMIN_DISCORD_IDS, else
+    403. Every call is logged with the acting admin for an audit trail."""
+    logger.info(
+        "admin_delete_user: admin discord_id=%s deleting profile_id=%s",
         current_user.discord_id,
         profile_id,
     )

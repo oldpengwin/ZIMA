@@ -37,6 +37,46 @@ UPDATABLE_FIELDS = {
 }
 
 
+# Input-size limits — cheap, deterministic caps so free-text/array fields can't
+# be used to bloat the DB or push unbounded payloads through the API.
+MAX_ARRAY_ITEMS = 50
+MAX_ARRAY_ITEM_LEN = 200
+MAX_TEXT_LEN = 5000
+MAX_SEARCH_LEN = 200
+
+_ARRAY_FIELDS = {"skills", "links", "projects", "offering", "looking_for", "badges", "wall_posts"}
+_TEXT_FIELDS = {"bio", "vision_2036", "mission"}
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE/ILIKE wildcards so user-supplied `%`/`_` are matched
+    literally (prevents wildcard abuse / needlessly expensive scans)."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _sanitize_array(value) -> list:
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value:
+        s = str(item).strip()[:MAX_ARRAY_ITEM_LEN]
+        if s:
+            out.append(s)
+        if len(out) >= MAX_ARRAY_ITEMS:
+            break
+    return out
+
+
+def _sanitize_field(field: str, value):
+    """Cap/normalize a single field value by name. Arrays are trimmed and
+    length-capped; long free-text is truncated. Other fields pass through."""
+    if field in _ARRAY_FIELDS:
+        return _sanitize_array(value)
+    if field in _TEXT_FIELDS and isinstance(value, str):
+        return value[:MAX_TEXT_LEN]
+    return value
+
+
 class ProfileServiceError(Exception):
     pass
 
@@ -75,6 +115,11 @@ def create_profile(db: Session, data: Dict[str, Any]) -> Profile:
             raise InvalidProfileDataError(f"Missing required field: {field}")
 
     _validate_neurotype(data.get("neurotype"))
+
+    # Cap/normalize arrays and long text before they hit the DB.
+    for _field in _ARRAY_FIELDS | _TEXT_FIELDS:
+        if _field in data:
+            data[_field] = _sanitize_field(_field, data[_field])
 
     profile = Profile(
         id=uuid.uuid4(),
@@ -120,6 +165,38 @@ def create_profile(db: Session, data: Dict[str, Any]) -> Profile:
     return profile
 
 
+_ONBOARDING_UPDATE_FIELDS = {"display_name", "location", "skills", "bio", "links", "discord_username"}
+
+
+def upsert_by_discord_id(db: Session, data: Dict[str, Any], mark_onboarded: bool = False):
+    """Create-or-update a profile keyed by discord_id — the Discord bot's
+    onboarding path, now going through the API instead of a direct Supabase
+    service-key write. Returns (profile, created). Reuses create_profile (so
+    validation, sanitization and the consent record all still happen) and, on
+    an existing profile, applies only the onboarding-writable fields."""
+    discord_id = data.get("discord_id")
+    if not discord_id:
+        raise InvalidProfileDataError("Missing required field: discord_id")
+
+    profile = get_profile_by_discord_id(db, discord_id)
+    if profile is None:
+        profile = create_profile(db, data)
+        created = True
+    else:
+        for field, value in data.items():
+            if field in _ONBOARDING_UPDATE_FIELDS and value is not None:
+                setattr(profile, field, _sanitize_field(field, value))
+        created = False
+
+    if mark_onboarded:
+        profile.onboarding_completed_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(profile)
+    logger.info("Upsert profile for discord_id=%s (created=%s)", discord_id, created)
+    return profile, created
+
+
 def get_profile_by_id(db: Session, profile_id: str) -> Optional[Profile]:
     try:
         pid = uuid.UUID(str(profile_id))
@@ -144,6 +221,7 @@ def update_profile(db: Session, profile_id: str, updates: Dict[str, Any]) -> Pro
     for field, value in updates.items():
         if field not in UPDATABLE_FIELDS:
             continue
+        value = _sanitize_field(field, value)
         setattr(profile, field, value)
         applied[field] = value
 
@@ -168,15 +246,23 @@ def search_profiles(db: Session, query: str, limit: int = 20, offset: int = 0) -
     LLM involved, matching the product's "pure code" search philosophy.
     Vector/semantic search is a documented next step once pgvector
     embeddings are populated (see IMPLEMENTATION_PLAN.md phase 3)."""
-    term = f"%{query}%"
-    skill_match = text("EXISTS (SELECT 1 FROM unnest(profiles.skills) s WHERE s ILIKE :term)").bindparams(term=term)
-    project_match = text("EXISTS (SELECT 1 FROM unnest(profiles.projects) p WHERE p ILIKE :term)").bindparams(term=term)
+    q = (query or "").strip()[:MAX_SEARCH_LEN]
+    if not q:
+        return []
+    # Escape LIKE wildcards so a literal `%`/`_` in the query stays literal.
+    term = f"%{_escape_like(q)}%"
+    skill_match = text(
+        "EXISTS (SELECT 1 FROM unnest(profiles.skills) s WHERE s ILIKE :term ESCAPE '\\')"
+    ).bindparams(term=term)
+    project_match = text(
+        "EXISTS (SELECT 1 FROM unnest(profiles.projects) p WHERE p ILIKE :term ESCAPE '\\')"
+    ).bindparams(term=term)
     return (
         db.query(Profile)
         .filter(
             or_(
-                Profile.display_name.ilike(term),
-                Profile.location.ilike(term),
+                Profile.display_name.ilike(term, escape="\\"),
+                Profile.location.ilike(term, escape="\\"),
                 skill_match,
                 project_match,
             )

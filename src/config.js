@@ -29,12 +29,15 @@ export const config = {
   serverId: env('DISCORD_SERVER_ID', 'DISCORD_GUILD_ID'),
   onboardingChannelId: required('ONBOARDING_CHANNEL_ID'),
   vettedRoleId: required('VETTED_ROLE_ID'),
-  supabaseUrl: required('SUPABASE_URL'),
-  supabaseServiceKey: required('SUPABASE_SERVICE_ROLE_KEY'),
-  // Python API (neurotype quiz scoring, network). Optional so the bot still
-  // boots without them; the quiz feature reports itself unavailable if unset.
+  // Supabase is no longer required: the bot writes profiles/roles/quiz through
+  // the Python API (below), not a direct service-role connection. Kept optional
+  // for any future direct use, but the bot boots fine without them.
+  supabaseUrl: env('SUPABASE_URL'),
+  supabaseServiceKey: env('SUPABASE_SERVICE_ROLE_KEY'),
+  // Python API — the bot's real backend now. BOT_API_KEY is required (must match
+  // the backend's BOT_API_KEY); without it the bot can't onboard or run the quiz.
   apiBaseUrl: env('API_BASE_URL', 'ZIMA_API_URL') || 'http://localhost:8000',
-  botApiKey: env('BOT_API_KEY') || '',
+  botApiKey: required('BOT_API_KEY'),
 };
 
 /** Role keys map to Discord role IDs — extend for quest rewards later */

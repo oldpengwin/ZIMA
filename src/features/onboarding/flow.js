@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
-import { getProfileByDiscordId, upsertProfile } from '../../db/supabase.js';
+import { getProfileByDiscordId, upsertProfile } from '../../lib/apiClient.js';
 import { grantRole, RoleGrantError } from '../../roles/roleManager.js';
 import { QUIZ_IDS } from '../quiz/constants.js';
 import {
@@ -54,7 +54,7 @@ export async function handleProfileModal(interaction) {
       skills,
       bio,
       links,
-      onboarding_completed_at: new Date().toISOString(),
+      onboarding_completed: true,
     });
 
     await grantRole(member, 'vetted', {

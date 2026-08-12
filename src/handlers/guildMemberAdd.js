@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { getProfileByDiscordId } from '../db/supabase.js';
+import { getProfileByDiscordId } from '../lib/apiClient.js';
 
 export async function onGuildMemberAdd(member) {
   if (member.user.bot) return;

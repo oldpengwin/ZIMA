@@ -372,3 +372,62 @@ def test_network_aggregate_is_public_safe():
 def test_bot_quiz_submit_requires_service_key():
     r = client.post("/api/v1/bot/quiz/submit", json={"discord_id": "123", "answers": {}})
     assert r.status_code == 401
+
+
+# ─────────────────── bot->API migration (feature: security-quickwins) ───────────────────
+
+
+def _bot_headers():
+    from src.core.config import get_settings
+    get_settings().bot_api_key = "test-bot-key"  # ensure the service key is set for the test
+    return {"X-Bot-Key": "test-bot-key"}
+
+
+def test_bot_profile_upsert_is_create_then_update():
+    headers = _bot_headers()
+    did = str(uuid.uuid4().int)[:18]
+    created = client.post(
+        "/api/v1/bot/profiles/upsert",
+        headers=headers,
+        json={"discord_id": did, "discord_username": "botuser", "display_name": "Bot Onboard",
+              "skills": ["python"], "onboarding_completed": True},
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["created"] is True
+    assert created.json()["onboarding_completed_at"] is not None
+
+    updated = client.post(
+        "/api/v1/bot/profiles/upsert",
+        headers=headers,
+        json={"discord_id": did, "display_name": "Renamed"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["created"] is False
+    assert updated.json()["display_name"] == "Renamed"
+
+    got = client.get(f"/api/v1/bot/profiles/by-discord/{did}", headers=headers)
+    assert got.status_code == 200 and got.json()["discord_id"] == did
+
+
+def test_bot_role_grant_is_idempotent():
+    headers = _bot_headers()
+    did = str(uuid.uuid4().int)[:18]
+    client.post("/api/v1/bot/profiles/upsert", headers=headers, json={"discord_id": did, "display_name": "Roled"})
+    r = client.post("/api/v1/bot/role-grants", headers=headers,
+                    json={"discord_id": did, "role_key": "vetted", "source": "onboarding"})
+    assert r.status_code == 200, r.text
+    assert r.json()["role_key"] == "vetted"
+    r2 = client.post("/api/v1/bot/role-grants", headers=headers, json={"discord_id": did, "role_key": "vetted"})
+    assert r2.status_code == 200  # upsert, no duplicate error
+
+
+def test_bot_endpoints_require_service_key():
+    assert client.post("/api/v1/bot/profiles/upsert", json={"discord_id": "x", "display_name": "y"}).status_code == 401
+    assert client.get("/api/v1/bot/profiles/by-discord/x").status_code == 401
+    assert client.post("/api/v1/bot/role-grants", json={"discord_id": "x", "role_key": "vetted"}).status_code == 401
+
+
+def test_search_query_length_capped():
+    # max_length=200 on the q param -> 422 for oversized input
+    resp = client.get("/api/v1/profiles", params={"q": "a" * 500})
+    assert resp.status_code == 422

@@ -1,6 +1,22 @@
 """
 Discord Cog for Matching Commands
 
+NOT WIRED IN / NOT RUNNING as of the backend-rebuild pass, and flagged as an
+open architectural decision, not resolved here: this is a SECOND Discord bot
+implementation (discord.py, cog-based) that duplicates what the real, working
+bot (discord.js, repo root — src/index.js, src/features/onboarding/,
+src/roles/roleManager.js) already does for onboarding, and additionally
+implements matching/connection slash commands that the working bot doesn't
+have. There is no entrypoint anywhere in this repo that actually loads this
+cog into a running bot process — it imports src/core/profile_manager.py
+(itself deprecated, see that file's docstring) and nothing else. Building on
+this file means building on dead code; if Discord-native matching commands
+are wanted, the real question is whether to (a) port this cog's command
+definitions onto the working discord.js bot instead, or (b) actually stand
+this Python bot up as a second running process against the shared DB — see
+README.internal.md's "Discord bot(s)" section. Do not extend this file
+without first resolving that question with Frost.
+
 Implements matching functionality for the ZIMA Discord bot.
 """
 

@@ -1,32 +1,78 @@
 """
-Database Models for ZIMA Platform
+Canonical Database Models for the ZIMA Platform.
 
-SQLAlchemy models for PostgreSQL database.
+This is the single source of truth for the ZIMA schema, reconciling the three
+schemas that previously disagreed with each other:
+  - supabase/schema.sql (what the Discord bot actually wrote)
+  - the old src/core/profile_manager.py raw-SQL field set
+  - this file's own previous, broken version (missing imports, unresolved names)
+
+Design notes:
+  - `profiles` is a superset of the Discord bot's simple onboarding fields
+    (discord_id, discord_username, display_name, location, skills, bio,
+    links, onboarding_completed_at) PLUS the richer matching/product fields
+    (neurotype, offering, looking_for, projects, tagline, embedding, etc).
+    The bot only ever writes the first set; it's safe for it to keep doing
+    that because every added column here is nullable/defaulted. See
+    supabase/schema.sql, which has been updated to match this file.
+  - `neurotype` is nullable: a profile exists (and the bot can onboard
+    someone) before the archetype quiz has been taken.
+  - Privacy/deletion is a first-class concern, not bolted on: ConsentRecord,
+    DeletionRequest and DeletionAuditLog exist so that the "delete a user
+    without corrupting anyone else's data" requirement is auditable and
+    testable (see src/services/privacy_service.py and
+    tests/backend/test_privacy_service.py).
+  - Foreign keys that point at a profile use ondelete='SET NULL' where the
+    referencing row has independent value once the profile is gone (a
+    project other people still work on, a resource the community still
+    uses, a message the other party still holds), and ondelete='CASCADE'
+    where the row IS the relationship and has no independent value once one
+    side is gone (a connection, a project roster entry, a role grant).
+    These DB-level constraints are a safety net; the actual deletion flow in
+    privacy_service.py performs them explicitly so it can produce an audit
+    report of what happened.
 """
 
 from datetime import datetime
-from typing import List, Optional
 from enum import Enum
 import uuid
 
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ARRAY, JSON, Float
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    ARRAY,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.sql import func, text as sql_text
 
-# Import pgvector for vector support
 try:
     from pgvector.sqlalchemy import Vector
-except ImportError:
+except ImportError:  # pragma: no cover - degrades gracefully without pgvector installed
     Vector = None
 
-
-# Base class for declarative models
 Base = declarative_base()
 
 
+def _uuid_pk():
+    return Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+
 class NeurotypeEnum(Enum):
-    """Neurotype enumeration"""
+    """The 10 canonical archetypes (Archetypes.md). Any other archetype set
+    found elsewhere in the project (the 7-type Figma file, the 6-type regex
+    set in demo/zima-globe.html) is stale/deprecated — this is the one the
+    product and backend use."""
+
     SEEDCASTER = "seedcaster"
     FABRICANT = "fabricant"
     MYCELIAN = "mycelian"
@@ -40,7 +86,6 @@ class NeurotypeEnum(Enum):
 
 
 class ConnectionStatusEnum(Enum):
-    """Connection request status enumeration"""
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
@@ -48,49 +93,61 @@ class ConnectionStatusEnum(Enum):
 
 
 class Profile(Base):
-    """User profile model"""
+    """A builder's profile. Also the platform's identity record — there is
+    no separate `users` table; `profiles.id` IS the user id everywhere."""
+
     __tablename__ = "profiles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = _uuid_pk()
+
+    # Discord identity + the fields the bot's onboarding modal writes today.
     discord_id = Column(String(64), unique=True, nullable=False, index=True)
     discord_username = Column(String(100), nullable=False)
     display_name = Column(String(100), nullable=False)
-    neurotype = Column(String(20), nullable=False, index=True)
-    skills = Column(ARRAY(String), default=[])
-    offering = Column(ARRAY(String), default=[])
-    looking_for = Column(ARRAY(String), default=[])
-    projects = Column(ARRAY(String), default=[])
     location = Column(String(100))
+    skills = Column(ARRAY(String), default=list, server_default="{}")
     bio = Column(Text)
-    links = Column(ARRAY(String), default=[])
-    is_open = Column(Boolean, default=True, index=True)
-    tagline = Column(String(255))  # LLM-generated summary
-    embedding = Column(Vector(384)) if Vector else Column(ARRAY(Float))  # For vector search
-    vision_2036 = Column(Text)  # Long-term vision
-    mission = Column(Text)  # Personal mission
-    badges = Column(ARRAY(String), default=[])  # Achievements
-    wall_posts = Column(ARRAY(String), default=[])  # Recent activity
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    links = Column(ARRAY(String), default=list, server_default="{}")
+    onboarding_completed_at = Column(DateTime(timezone=True))
+
+    # Richer product/matching fields, filled in later via the web app.
+    neurotype = Column(String(20), index=True)  # nullable until quiz is taken
+    offering = Column(ARRAY(String), default=list, server_default="{}")
+    looking_for = Column(ARRAY(String), default=list, server_default="{}")
+    projects = Column(ARRAY(String), default=list, server_default="{}")
+    is_open = Column(Boolean, default=True, server_default="true", index=True)
+    tagline = Column(String(255))
+    embedding = Column(Vector(384)) if Vector else Column(ARRAY(Float))
+    vision_2036 = Column(Text)
+    mission = Column(Text)
+    badges = Column(ARRAY(String), default=list, server_default="{}")
+    wall_posts = Column(ARRAY(String), default=list, server_default="{}")
+
+    # Privacy
+    consented_at = Column(DateTime(timezone=True))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)  # set briefly during deletion txn; row is then hard-deleted
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<Profile {self.display_name} ({self.neurotype})>"
 
     def to_dict(self) -> dict:
-        """Convert profile to dictionary"""
         return {
             "id": str(self.id),
             "discord_id": self.discord_id,
             "discord_username": self.discord_username,
             "display_name": self.display_name,
-            "neurotype": self.neurotype,
+            "location": self.location,
             "skills": self.skills or [],
+            "bio": self.bio,
+            "links": self.links or [],
+            "onboarding_completed_at": self.onboarding_completed_at.isoformat() if self.onboarding_completed_at else None,
+            "neurotype": self.neurotype,
             "offering": self.offering or [],
             "looking_for": self.looking_for or [],
             "projects": self.projects or [],
-            "location": self.location,
-            "bio": self.bio,
-            "links": self.links or [],
             "is_open": self.is_open,
             "tagline": self.tagline,
             "vision_2036": self.vision_2036,
@@ -98,31 +155,27 @@ class Profile(Base):
             "badges": self.badges or [],
             "wall_posts": self.wall_posts or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
-class ConnectionRequest(Base):
-    """Connection request model"""
-    __tablename__ = "connection_requests"
+class Connection(Base):
+    """A connection request between two profiles (renamed from
+    `connection_requests` conceptually — same table shape, clearer name)."""
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    from_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    to_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    status = Column(String(20), default="pending", index=True)
+    __tablename__ = "connections"
+
+    id = _uuid_pk()
+    from_user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    to_user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(20), default=ConnectionStatusEnum.PENDING.value, server_default="pending", index=True)
     message = Column(Text)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("from_user_id", "to_user_id", name="_from_to_uc"),
-    )
-
-    def __repr__(self):
-        return f"<ConnectionRequest {self.id} {self.status}>"
+    __table_args__ = (UniqueConstraint("from_user_id", "to_user_id", name="_from_to_uc"),)
 
     def to_dict(self) -> dict:
-        """Convert connection request to dictionary"""
         return {
             "id": str(self.id),
             "from_user_id": str(self.from_user_id),
@@ -130,128 +183,115 @@ class ConnectionRequest(Base):
             "status": self.status,
             "message": self.message,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class Project(Base):
-    """Project model"""
     __tablename__ = "projects"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    id = _uuid_pk()
+    # SET NULL, not CASCADE: a project other people are working on must survive its
+    # owner's account deletion. owner_deleted is set so the UI can render "[deleted user]".
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    owner_deleted = Column(Boolean, default=False, server_default="false")
     title = Column(String(200), nullable=False)
     description = Column(Text)
-    neurotypes_needed = Column(ARRAY(String), default=[])
-    skills_needed = Column(ARRAY(String), default=[])
-    status = Column(String(20), default="active", index=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Project {self.title}>"
+    neurotypes_needed = Column(ARRAY(String), default=list, server_default="{}")
+    skills_needed = Column(ARRAY(String), default=list, server_default="{}")
+    status = Column(String(20), default="active", server_default="active", index=True)  # idea | building | launched
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def to_dict(self) -> dict:
-        """Convert project to dictionary"""
         return {
             "id": str(self.id),
-            "owner_id": str(self.owner_id),
+            "owner_id": str(self.owner_id) if self.owner_id else None,
+            "owner_deleted": self.owner_deleted,
             "title": self.title,
             "description": self.description,
             "neurotypes_needed": self.neurotypes_needed or [],
             "skills_needed": self.skills_needed or [],
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class ProjectParticipant(Base):
-    """Project participant model"""
     __tablename__ = "project_participants"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    profile_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    id = _uuid_pk()
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String(100))
-    joined_at = Column(DateTime, server_default=func.now())
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("project_id", "profile_id", name="_project_profile_uc"),
-    )
-
-    def __repr__(self):
-        return f"<ProjectParticipant {self.project_id} {self.profile_id}>"
+    __table_args__ = (UniqueConstraint("project_id", "profile_id", name="_project_profile_uc"),)
 
     def to_dict(self) -> dict:
-        """Convert project participant to dictionary"""
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),
             "profile_id": str(self.profile_id),
             "role": self.role,
-            "joined_at": self.joined_at.isoformat() if self.joined_at else None
+            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
         }
 
 
 class Organization(Base):
-    """Organization model"""
     __tablename__ = "organizations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = _uuid_pk()
     name = Column(String(200), nullable=False, index=True)
     mission = Column(Text)
     location = Column(String(100))
-    roles_open = Column(ARRAY(String), default=[])
-    project_links = Column(ARRAY(String), default=[])
+    org_type = Column(String(50))  # hardware | advocacy | employment | finance | infrastructure | research | education
+    roles_open = Column(ARRAY(String), default=list, server_default="{}")
+    project_links = Column(ARRAY(String), default=list, server_default="{}")
     email = Column(String(255))
-    beta_info = Column(Text)  # Information about beta programs
-    resume_request = Column(Boolean, default=False)  # Whether accepting resumes
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Organization {self.name}>"
+    beta_info = Column(Text)
+    resume_request = Column(Boolean, default=False, server_default="false")
+    trust_score = Column(Float, default=0.5, server_default="0.5")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def to_dict(self) -> dict:
-        """Convert organization to dictionary"""
         return {
             "id": str(self.id),
             "name": self.name,
             "mission": self.mission,
             "location": self.location,
+            "org_type": self.org_type,
             "roles_open": self.roles_open or [],
             "project_links": self.project_links or [],
             "email": self.email,
             "beta_info": self.beta_info,
             "resume_request": self.resume_request,
+            "trust_score": self.trust_score,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class Resource(Base):
-    """Resource model for directory"""
     __tablename__ = "resources"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = _uuid_pk()
     title = Column(String(200), nullable=False)
-    type = Column(String(50), index=True)  # learning, tool, builder, hackathon, event, dataset, pattern, lesson
+    type = Column(String(50), index=True)  # learning | tool | builder | hackathon | event | dataset | pattern | lesson
     category = Column(String(100), index=True)
     subcategory = Column(String(100))
     url = Column(String(500), nullable=False)
     description = Column(Text)
-    status = Column(String(50), default="pending", index=True)  # pending, verified
-    votes = Column(Integer, default=0)
-    cool = Column(Integer, default=0)  # Separate scoring system
-    created_at = Column(DateTime, server_default=func.now())
-    submitted_by = Column(UUID(as_uuid=True))
-
-    def __repr__(self):
-        return f"<Resource {self.title}>"
+    status = Column(String(50), default="pending", server_default="pending", index=True)
+    votes = Column(Integer, default=0, server_default="0")
+    cool = Column(Integer, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # SET NULL: the resource is a community asset and outlives its submitter's account.
+    submitted_by = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True)
 
     def to_dict(self) -> dict:
-        """Convert resource to dictionary"""
         return {
             "id": str(self.id),
             "title": self.title,
@@ -264,55 +304,51 @@ class Resource(Base):
             "votes": self.votes,
             "cool": self.cool,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "submitted_by": str(self.submitted_by) if self.submitted_by else None
+            "submitted_by": str(self.submitted_by) if self.submitted_by else None,
         }
 
 
 class Message(Base):
-    """Message model for user conversations"""
     __tablename__ = "messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    from_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    to_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    id = _uuid_pk()
+    # SET NULL, not CASCADE: the recipient keeps their side of the thread after the
+    # sender deletes their account (content is preserved; identity is not).
+    from_user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    to_user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    from_user_deleted = Column(Boolean, default=False, server_default="false")
+    to_user_deleted = Column(Boolean, default=False, server_default="false")
     content = Column(Text, nullable=False)
-    read = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now())
-
-    def __repr__(self):
-        return f"<Message {self.id}>"
+    read = Column(Boolean, default=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self) -> dict:
-        """Convert message to dictionary"""
         return {
             "id": str(self.id),
-            "from_user_id": str(self.from_user_id),
-            "to_user_id": str(self.to_user_id),
+            "from_user_id": str(self.from_user_id) if self.from_user_id else None,
+            "to_user_id": str(self.to_user_id) if self.to_user_id else None,
+            "from_user_deleted": self.from_user_deleted,
+            "to_user_deleted": self.to_user_deleted,
             "content": self.content,
             "read": self.read,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
 class Event(Base):
-    """Event model"""
     __tablename__ = "events"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = _uuid_pk()
     title = Column(String(200), nullable=False)
-    date = Column(DateTime, nullable=False, index=True)
+    date = Column(DateTime(timezone=True), nullable=False, index=True)
     location = Column(String(100))
-    official = Column(Boolean, default=False, index=True)
+    official = Column(Boolean, default=False, server_default="false", index=True)
     description = Column(Text)
     contact_email = Column(String(255))
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Event {self.title}>"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def to_dict(self) -> dict:
-        """Convert event to dictionary"""
         return {
             "id": str(self.id),
             "title": self.title,
@@ -322,27 +358,24 @@ class Event(Base):
             "description": self.description,
             "contact_email": self.contact_email,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class LanguageEntry(Base):
-    """Language map entry - tracks word usage and drift"""
+    """Shared Language Map — tracks word usage/drift across archetypes."""
+
     __tablename__ = "language_entries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = _uuid_pk()
     word = Column(String(100), nullable=False, index=True)
-    definitions = Column(JSON, default={})  # {group_name: definition_sample}
-    drift_score = Column(Float, default=0.0)  # 0.0-1.0, high > 0.7
-    frequency_by_neurotype = Column(JSON, default={})  # {neurotype: count}
-    frequency_by_location = Column(JSON, default={})  # {location: count}
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<LanguageEntry {self.word}>"
+    definitions = Column(JSON, default=dict, server_default="{}")
+    drift_score = Column(Float, default=0.0, server_default="0.0")
+    frequency_by_neurotype = Column(JSON, default=dict, server_default="{}")
+    frequency_by_location = Column(JSON, default=dict, server_default="{}")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def to_dict(self) -> dict:
-        """Convert language entry to dictionary"""
         return {
             "id": str(self.id),
             "word": self.word,
@@ -350,9 +383,247 @@ class LanguageEntry(Base):
             "drift_score": self.drift_score,
             "frequency_by_neurotype": self.frequency_by_neurotype or {},
             "frequency_by_location": self.frequency_by_location or {},
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
-# Import for unique constraint
-from sqlalchemy import UniqueConstraint
+class RoleGrant(Base):
+    """Mirrors supabase's role_grants — now also readable from the canonical
+    Postgres DB so the Python side can see Discord role history."""
+
+    __tablename__ = "role_grants"
+
+    id = _uuid_pk()
+    discord_id = Column(String(64), nullable=False, index=True)
+    role_key = Column(String(100), nullable=False)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    source = Column(String(50), default="onboarding", server_default="onboarding")
+    role_metadata = Column(JSON, default=dict, server_default="{}")
+
+    __table_args__ = (UniqueConstraint("discord_id", "role_key", name="_discord_role_uc"),)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "discord_id": self.discord_id,
+            "role_key": self.role_key,
+            "granted_at": self.granted_at.isoformat() if self.granted_at else None,
+            "source": self.source,
+            "metadata": self.role_metadata or {},
+        }
+
+
+class QuestCompletion(Base):
+    __tablename__ = "quest_completions"
+
+    id = _uuid_pk()
+    discord_id = Column(String(64), nullable=False, index=True)
+    quest_key = Column(String(100), nullable=False)
+    completed_at = Column(DateTime(timezone=True), server_default=func.now())
+    quest_metadata = Column(JSON, default=dict, server_default="{}")
+
+    __table_args__ = (UniqueConstraint("discord_id", "quest_key", name="_discord_quest_uc"),)
+
+
+# ─────────────────────────── Derived/cached data (AcousticBrainz-style) ───────────────────────────
+#
+# `profiles` above stays a tightly-typed, hot-path relational table — the
+# equivalent of what AcousticBrainz calls its core entity (an MBID-keyed
+# recording). The two tables below are that platform's other half of the
+# pattern: expensive-to-compute or read-heavy *derived* data, stored
+# separately so it can be cached, versioned, and evolved independently of
+# the identity table it's derived from, without ever touching that table's
+# schema. Specifically, borrowed directly from how AcousticBrainz stores
+# lowlevel/highlevel audio-feature submissions:
+#
+#   1. Every computation is INSERTED as a new row, never UPDATEd in place.
+#      A `submission history` (here, old match scores) is kept for
+#      audit/trend purposes instead of being silently overwritten — the
+#      same "append, don't mutate" principle the rest of this schema
+#      already applies to deletion_audit_log.
+#   2. One narrow, indexed "current" pointer (`is_current`) makes the
+#      common read ("give me the match score right now") an O(1) indexed
+#      lookup instead of a `MAX(computed_at)` scan.
+#   3. The full computed payload lives in a JSONB column (`breakdown`) so
+#      the algorithm can grow new dimensions later without a migration —
+#      but any field that's actually filtered or sorted on in a hot query
+#      (`score`) is promoted to a real indexed column instead of staying
+#      buried in JSON. AcousticBrainz does the same thing with e.g.
+#      `lossless` on its lowlevel table.
+#   4. Cache validity is a content hash (`input_fingerprint`), not a TTL —
+#      a row is correct for as long as neither profile's matching-relevant
+#      fields nor the algorithm itself have changed, however long that is,
+#      and is known-stale the instant either one does.
+
+
+class MatchScoreCache(Base):
+    """Cached pairwise neurotype-match computation. See services/
+    matching_service.py — this is what turns "recompute every candidate on
+    every /match/{user_id} call" into "compute once, reuse until either
+    profile or the algorithm changes." The scoring algorithm in
+    core/neurotype_matcher.py is symmetric (score(A, B) == score(B, A) —
+    every sub-score is computed from the union/intersection of both
+    profiles' fields with no directional term), so each unordered pair is
+    stored exactly once under a canonical ordering (`profile_lo_id` is
+    always the lexicographically smaller of the two profile ids), not once
+    per direction — a match score computed for A is immediately reusable
+    when B looks at their own matches, cutting the effective cache
+    population in half versus storing it per-direction."""
+
+    __tablename__ = "match_score_cache"
+
+    id = _uuid_pk()
+    profile_lo_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile_hi_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    score = Column(Float, nullable=False, index=True)  # promoted hot-path column — mirrors AB's `lossless`
+    algorithm_version = Column(String(20), nullable=False)
+    input_fingerprint = Column(String(64), nullable=False)  # sha256 of both profiles' matching-relevant fields
+    breakdown = Column(JSON, nullable=False, default=dict, server_default="{}")  # skill/neurotype/project/location sub-scores
+
+    is_current = Column(Boolean, nullable=False, default=True, server_default="true")
+    computed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        # Partial unique index: exactly one is_current=true row per pair, unlimited
+        # is_current=false history rows. A plain UniqueConstraint here would also
+        # forbid multiple history rows, defeating the point of keeping history.
+        Index(
+            "ix_match_score_cache_current_pair",
+            "profile_lo_id",
+            "profile_hi_id",
+            unique=True,
+            postgresql_where=sql_text("is_current"),
+        ),
+        Index("ix_match_score_cache_lo_current", "profile_lo_id", "is_current"),
+        Index("ix_match_score_cache_hi_current", "profile_hi_id", "is_current"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "profile_lo_id": str(self.profile_lo_id),
+            "profile_hi_id": str(self.profile_hi_id),
+            "score": self.score,
+            "algorithm_version": self.algorithm_version,
+            "breakdown": self.breakdown or {},
+            "is_current": self.is_current,
+            "computed_at": self.computed_at.isoformat() if self.computed_at else None,
+        }
+
+
+class ProfileMatchStats(Base):
+    """Cheap-to-read aggregate summary per profile — AcousticBrainz's
+    "highlevel" (derived classification) equivalent of MatchScoreCache's
+    "lowlevel" (raw computed feature) data. Recomputed on-demand/on a
+    schedule by services/stats_service.py, never inline on a page request,
+    so rendering a profile's stats is always a single-row primary-key read
+    regardless of how many connections/projects/cached matches exist behind
+    it. One row per profile, overwritten in place (unlike MatchScoreCache):
+    this is a rollup, not an auditable event, so there's nothing worth
+    keeping history of."""
+
+    __tablename__ = "profile_match_stats"
+
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True)
+    total_connections = Column(Integer, nullable=False, default=0, server_default="0")
+    total_projects_owned = Column(Integer, nullable=False, default=0, server_default="0")
+    total_projects_joined = Column(Integer, nullable=False, default=0, server_default="0")
+    cached_match_count = Column(Integer, nullable=False, default=0, server_default="0")
+    avg_match_score = Column(Float, nullable=True)
+    top_match_profile_id = Column(UUID(as_uuid=True), nullable=True)
+    computed_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def to_dict(self) -> dict:
+        return {
+            "profile_id": str(self.profile_id),
+            "total_connections": self.total_connections,
+            "total_projects_owned": self.total_projects_owned,
+            "total_projects_joined": self.total_projects_joined,
+            "cached_match_count": self.cached_match_count,
+            "avg_match_score": self.avg_match_score,
+            "top_match_profile_id": str(self.top_match_profile_id) if self.top_match_profile_id else None,
+            "computed_at": self.computed_at.isoformat() if self.computed_at else None,
+        }
+
+
+# ─────────────────────────── Privacy / consent / deletion ───────────────────────────
+
+
+class ConsentRecord(Base):
+    """Explicit consent tracking. Kept after a profile is deleted (with the
+    subject anonymized) as the compliance record that consent was granted
+    and later withdrawn — this table is never touched by the deletion flow
+    itself, only appended to."""
+
+    __tablename__ = "consent_records"
+
+    id = _uuid_pk()
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    subject_deleted = Column(Boolean, default=False, server_default="false")
+    consent_type = Column(String(50), nullable=False)  # e.g. "data_processing", "discord_scrape"
+    granted_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    source = Column(String(50))  # e.g. "discord_onboarding", "web_signup"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "profile_id": str(self.profile_id) if self.profile_id else None,
+            "subject_deleted": self.subject_deleted,
+            "consent_type": self.consent_type,
+            "granted_at": self.granted_at.isoformat() if self.granted_at else None,
+            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
+            "source": self.source,
+        }
+
+
+class DeletionRequest(Base):
+    """One row per account-deletion event. Never modified by the deletion it
+    records — this and DeletionAuditLog are the audit trail that proves a
+    deletion happened and exactly what it touched."""
+
+    __tablename__ = "deletion_requests"
+
+    id = _uuid_pk()
+    profile_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # not an FK: profile row is gone after completion
+    discord_id = Column(String(64), nullable=False)
+    requested_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    requested_by = Column(String(50), default="self", server_default="self")  # self | admin
+    status = Column(String(20), default="pending", server_default="pending", index=True)  # pending | completed | failed
+
+    audit_entries = relationship("DeletionAuditLog", back_populates="deletion_request", cascade="all, delete-orphan")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "profile_id": str(self.profile_id),
+            "discord_id": self.discord_id,
+            "requested_at": self.requested_at.isoformat() if self.requested_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "requested_by": self.requested_by,
+            "status": self.status,
+            "audit": [a.to_dict() for a in self.audit_entries],
+        }
+
+
+class DeletionAuditLog(Base):
+    __tablename__ = "deletion_audit_log"
+
+    id = _uuid_pk()
+    deletion_request_id = Column(UUID(as_uuid=True), ForeignKey("deletion_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    table_name = Column(String(100), nullable=False)
+    action = Column(String(20), nullable=False)  # hard_delete | anonymized | nullified
+    rows_affected = Column(Integer, nullable=False, default=0)
+    executed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    deletion_request = relationship("DeletionRequest", back_populates="audit_entries")
+
+    def to_dict(self) -> dict:
+        return {
+            "table_name": self.table_name,
+            "action": self.action,
+            "rows_affected": self.rows_affected,
+            "executed_at": self.executed_at.isoformat() if self.executed_at else None,
+        }

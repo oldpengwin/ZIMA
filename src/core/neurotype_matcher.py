@@ -55,6 +55,7 @@ class NeurotypeMatcher:
     # Neurotype compatibility matrix - scores from 0.0 (incompatible) to 1.0 (highly compatible)
     COMPATIBILITY_MATRIX = {
         Neurotype.SEEDCASTER: {
+            Neurotype.SEEDCASTER: 0.7,
             Neurotype.FABRICANT: 0.8,
             Neurotype.CULTIVAR: 0.9,
             Neurotype.TERRAFORMER: 0.7,
@@ -66,6 +67,7 @@ class NeurotypeMatcher:
             Neurotype.VERDANT: 0.5
         },
         Neurotype.FABRICANT: {
+            Neurotype.FABRICANT: 0.7,
             Neurotype.SEEDCASTER: 0.8,
             Neurotype.DEVELOPER: 0.85,
             Neurotype.ARTISAN: 0.75,
@@ -77,6 +79,7 @@ class NeurotypeMatcher:
             Neurotype.VERDANT: 0.6
         },
         Neurotype.MYCELIAN: {
+            Neurotype.MYCELIAN: 0.7,
             Neurotype.FABRICANT: 0.65,
             Neurotype.CULTIVAR: 0.8,
             Neurotype.DEVELOPER: 0.7,
@@ -88,6 +91,7 @@ class NeurotypeMatcher:
             Neurotype.VERDANT: 0.7
         },
         Neurotype.TERRAFORMER: {
+            Neurotype.TERRAFORMER: 0.7,
             Neurotype.SEEDCASTER: 0.7,
             Neurotype.FABRICANT: 0.7,
             Neurotype.MYCELIAN: 0.75,
@@ -99,6 +103,7 @@ class NeurotypeMatcher:
             Neurotype.VERDANT: 0.7
         },
         Neurotype.DEVELOPER: {
+            Neurotype.DEVELOPER: 0.7,
             Neurotype.FABRICANT: 0.85,
             Neurotype.MYCELIAN: 0.7,
             Neurotype.ARTISAN: 0.7,
@@ -110,6 +115,7 @@ class NeurotypeMatcher:
             Neurotype.TERRAFORMER: 0.6
         },
         Neurotype.ARTISAN: {
+            Neurotype.ARTISAN: 0.7,
             Neurotype.FABRICANT: 0.75,
             Neurotype.TERRAFORMER: 0.8,
             Neurotype.CHRONICLER: 0.8,
@@ -121,6 +127,7 @@ class NeurotypeMatcher:
             Neurotype.VERDANT: 0.6
         },
         Neurotype.CHRONICLER: {
+            Neurotype.CHRONICLER: 0.7,
             Neurotype.ARTISAN: 0.8,
             Neurotype.LOOMKEEPER: 0.8,
             Neurotype.VERDANT: 0.7,
@@ -132,6 +139,7 @@ class NeurotypeMatcher:
             Neurotype.CULTIVAR: 0.7
         },
         Neurotype.CULTIVAR: {
+            Neurotype.CULTIVAR: 0.7,
             Neurotype.SEEDCASTER: 0.9,
             Neurotype.MYCELIAN: 0.8,
             Neurotype.TERRAFORMER: 0.7,
@@ -143,6 +151,7 @@ class NeurotypeMatcher:
             Neurotype.DEVELOPER: 0.6
         },
         Neurotype.LOOMKEEPER: {
+            Neurotype.LOOMKEEPER: 0.7,
             Neurotype.SEEDCASTER: 0.8,
             Neurotype.FABRICANT: 0.7,
             Neurotype.TERRAFORMER: 0.8,
@@ -154,6 +163,7 @@ class NeurotypeMatcher:
             Neurotype.CULTIVAR: 0.7
         },
         Neurotype.VERDANT: {
+            Neurotype.VERDANT: 0.7,
             Neurotype.DEVELOPER: 0.8,
             Neurotype.LOOMKEEPER: 0.9,
             Neurotype.CHRONICLER: 0.7,
@@ -168,17 +178,17 @@ class NeurotypeMatcher:
 
     def __init__(self, profiles: List[Profile]):
         """
-        Initialize matcher with list of profiles
+        Initialize matcher with list of profiles.
+
+        An empty list is allowed: the pairwise calculate_*_score methods are
+        pure functions of two Profile arguments and don't need a populated
+        pool. Methods that DO need a pool (find_top_matches,
+        find_matches_by_neurotype, search_profiles) raise or return empty
+        results on their own when there's nothing to search — see below.
 
         Args:
             profiles: List of Profile objects to match against
-
-        Raises:
-            ValueError: If profiles list is empty
         """
-        if not profiles:
-            raise ValueError("Profiles list cannot be empty")
-
         self.profiles = profiles
         self._index_profiles()
 

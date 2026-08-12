@@ -1,325 +1,142 @@
-# ZIMA Platform - Complete Guide
+# ZIMA
 
-**The Builders Network** - A self-hosted community platform connecting builders based on skills and neurotypes.
+**The Builders Network** — a community platform that connects builders
+working on regenerative, solarpunk, and tools-for-sovereignty projects,
+matched by skills and by *neurotype*: ten builder archetypes describing how
+someone works and what they naturally bring to a project, not a personality
+quiz gimmick but the backbone of how matching actually scores compatibility.
 
-![ZIMA Platform](https://via.placeholder.com/1200x600/131313/57B8DC?text=ZIMA+Platform)
+Built under the HOPAMINE brand. Onboarding happens on Discord; the web
+platform is where matching, projects, and the builder directory live.
 
-## 🚀 Quick Start
+## The ten archetypes
 
-### Prerequisites
-- Python 3.9+
-- Node.js 18+
-- PostgreSQL 14+
-- Docker (optional)
+| | Archetype | |
+|---|---|---|
+| 🌱 | **Seedcaster** | *"They plant what others haven't imagined yet."* — regenerative agriculture, food forests, seed saving |
+| ⚙️ | **Fabricant** | *"If it doesn't exist, they build it."* — mechanical engineering, fabrication, open-source hardware |
+| 🍄 | **Mycelian** | *"They think in networks and grow in the dark."* — biology, biomaterials, fermentation, bioremediation |
+| 🏗️ | **Terraformer** | *"They redesign the spaces we inhabit."* — sustainable architecture, passive design, land trusts |
+| 💻 | **Developer** | *"They write the tools of sovereignty."* — software, AI/ML, data pipelines, automation |
+| 🎨 | **Artisan** | *"They make the future beautiful enough to want."* — visual design, UI/UX, solarpunk aesthetics |
+| 📡 | **Chronicler** | *"They make sure the work gets seen."* — storytelling, video, writing, community media |
+| 🌿 | **Cultivar** | *"They bridge the lab and the land."* — food science, plant medicine, crop research |
+| 🔗 | **Loomkeeper** | *"They hold the network together."* — community building, event production, partnerships |
+| 📜 | **Verdant** | *"They change the rules of the game."* — policy, advocacy, circular economics, governance |
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/HOPAMINE/ZIMA.git
-cd ZIMA
-```
-
-### 2. Set Up Backend
-
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your database and JWT settings
-
-# Run backend
-python src/main.py
-```
-
-### 3. Set Up Frontend
-
-```bash
-cd src/frontend
-npm install
-
-# Create .env
-echo "REACT_APP_API_URL=http://localhost:8000/api/v1" > .env
-
-# Run frontend
-npm start
-```
-
-### 4. Set Up Discord Bot
-
-```bash
-cd src/bot
-cp .env.example .env
-# Edit .env with your Discord bot token
-
-npm install
-node index.js
-```
-
-The platform will be available at:
-- **Frontend**: `http://localhost:3000`
-- **API**: `http://localhost:8000`
-- **API Docs**: `http://localhost:8000/api/docs`
-
-## 📖 Documentation
-
-- [Frontend Setup](src/frontend/README.md)
-- [Backend Setup](backend/README.md)
-
-## 🎯 Features
-
-### ✅ Currently Implemented
-
-- **Discord Bot**: Onboarding, profile collection, role management
-- **Neurotype Matching**: 10 archetypes with compatibility matrix
-- **RESTful API**: FastAPI backend with JWT authentication
-- **React Frontend**: HOPAMINE brand compliant UI
-- **Database**: PostgreSQL with SQLAlchemy models
-- **Connection System**: Message templates and connection requests
-
-### 🚧 In Development
-
-- **Interactive Visualizations**: 3D globe and network graphs
-- **Project Management**: Create and join projects
-- **Event System**: Community events and notifications
-- **Admin Dashboard**: Moderation tools
-
-## 🏗️ Architecture
-
-```
-ZIMA Platform
-├── frontend/          # React + Three.js + D3.js
-├── backend/           # FastAPI + PostgreSQL
-├── bot/               # Discord.js (modular cogs)
-└── shared/            # Common resources
-```
-
-### Tech Stack
-
-**Backend**:
-- FastAPI (Python)
-- PostgreSQL
-- SQLAlchemy
-- JWT Authentication
-- Uvicorn / Gunicorn
-
-**Frontend**:
-- React 18
-- React Router
-- Axios
-- Three.js (for visualizations)
-- D3.js (for network graphs)
-
-**Discord Bot**:
-- discord.py
-- Cog architecture
-- Supabase integration
-
-**Design**:
-- HOPAMINE "Eco-Brutalism"
-- Swiss-grid discipline
-- Acid-bright flat colors
-- 1-bit dithered imagery
-
-## 🧠 Neurotypes
-
-The platform uses 10 neurotypes for matching:
-
-1. **🌱 Seedcaster** - Visionaries of regenerative systems
-2. **⚙️ Fabricant** - Makers and builders
-3. **🍄 Mycelian** - Biological systems experts
-4. **🏗️ Terraformer** - Sustainable architecture
-5. **💻 Developer** - Software and tools
-6. **🎨 Artisan** - Design and aesthetics
-7. **📡 Chronicler** - Storytelling and media
-8. **🌿 Cultivar** - Food science and agriculture
-9. **🔗 Loomkeeper** - Community builders
-10. **📜 Verdant** - Policy and advocacy
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create `.env` files for each component:
-
-**Backend** (`.env`):
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/zima
-SECRET_KEY=your-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-FRONTEND_URL=http://localhost:3000
-```
-
-**Frontend** (`src/frontend/.env`):
-```env
-REACT_APP_API_URL=http://localhost:8000/api/v1
-```
-
-**Discord Bot** (`src/bot/.env`):
-```env
-DISCORD_TOKEN=your-bot-token
-DISCORD_APPLICATION_ID=your-app-id
-DISCORD_SERVER_ID=your-server-id
-ONBOARDING_CHANNEL_ID=your-channel-id
-VETTED_ROLE_ID=your-role-id
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-key
-```
-
-## 📦 Project Structure
+## Architecture
 
 ```
 ZIMA/
 ├── src/
-│   ├── frontend/          # React frontend
-│   │   ├── components/     # Reusable UI components
-│   │   ├── pages/          # Page components
-│   │   ├── api.js          # API client
-│   │   └── App.jsx         # Main app
-│   │
-│   ├── api/               # FastAPI routes
-│   │   └── routes.py       # API endpoints
-│   │
-│   ├── core/              # Core logic
-│   │   ├── neurotype_matcher.py  # Matching algorithm
-│   │   └── profile_manager.py   # Profile operations
-│   │
-│   ├── database/          # Database
-│   │   └── models.py       # SQLAlchemy models
-│   │
-│   ├── bot/               # Discord bot
-│   │   ├── cogs/           # Bot cogs
-│   │   │   └── matching.py # Matching commands
-│   │   └── index.js        # Bot entry point
-│   │
-│   └── main.py            # FastAPI entry point
-│
-├── demo/                  # Frontend prototypes
-│   ├── index.html         # Main demo page
-│   ├── zima-globe.html     # 3D globe visualization
-│   └── zima-network-demo.html # Network graph
-│
-├── supabase/              # Database schema
-│   └── schema.sql         # SQL schema
-│
-├── requirements.txt       # Python dependencies
-├── package.json           # Node.js dependencies
-└── README.md              # This file
+│   ├── index.js, config.js, features/, handlers/, roles/   # Discord bot (discord.js)
+│   ├── api/, core/, database/, db/, services/               # FastAPI backend (Python)
+│   └── frontend/                                            # Web app (React) — in active rebuild
+├── demo/                # Live prototype pages (deployed via Vercel)
+├── migrations/           # Alembic schema migrations
+├── supabase/schema.sql   # Same schema, for a Supabase-hosted Postgres
+├── scripts/seed_data.py  # Generates a realistic dev/test dataset — not for production use
+└── tests/
 ```
 
-## 🔗 API Endpoints
+**Backend**: FastAPI + PostgreSQL + SQLAlchemy, Discord OAuth2 for auth,
+Alembic for migrations. Matching is deterministic, pure-code scoring — no
+LLM calls in the hot path. **Discord bot**: discord.js, handles onboarding
+and role management, writes into the same database the API reads from.
+**Frontend**: React — currently mid-rebuild against the backend above; the
+`demo/` folder is the current live public preview in the meantime.
 
-### Authentication
-- `POST /api/v1/token` - Get JWT token
-- `GET /api/v1/profiles/me` - Get current user
+## Quick start
 
-### Profiles
-- `POST /api/v1/profiles` - Create profile
-- `GET /api/v1/profiles` - Search profiles
-- `GET /api/v1/profiles/{id}` - Get profile
-- `PUT /api/v1/profiles/{id}` - Update profile
-
-### Matching
-- `GET /api/v1/match/{user_id}` - Find matches
-- `POST /api/v1/match/request` - Send connection request
-- `GET /api/v1/match/{user_id}/requests` - Get requests
-
-### Neurotypes
-- `GET /api/v1/neurotypes` - List all neurotypes
-
-## 🤖 Discord Bot Commands
-
-- `/setup-onboarding` - Set up onboarding in a channel
-- `/match` - Find compatible builders
-- `/connect @user` - Connect with a user
-- `/my-matches` - View your connections
-- `/neurotypes` - Learn about neurotypes
-
-## 🎨 Design System (HOPAMINE)
-
-### Colors
-```
-Sky Blue: #57B8DC (Primary)
-Near-Black: #131313 (Background)
-Hot Magenta: #E93CA7 (Accent)
-Deep Ocean Blue: #1E6193 (Secondary)
-Lime: #A4C24B (Accent)
-Bone: #E7E4DB (Text)
-Off-White: #F4F2EB (Light text)
-```
-
-### Typography
-- **The Shout**: Archivo Black / Helvetica Now Black (ALL CAPS)
-- **The Talk**: Oswald Narrow / Roboto Condensed (ALL CAPS)
-- **The Whisper**: Caveat / Ephesis (Magenta, script)
-
-### Layout Anatomy
-```
-[Top accent stripe]
-[Micro kicker (top-left)]
-[Justified display block]
-[3-column micro grid OR hairline-ruled table]
-[Footer (pill counter + two solid color dots + wordmark)]
-```
-
-## 🚀 Deployment
-
-### Docker
+Prerequisites: Python 3.11+, Node.js 18+, PostgreSQL 16+ (with the
+`pgvector` and `pgcrypto` extensions available), Docker (optional).
 
 ```bash
-docker-compose up --build
+git clone https://github.com/oldpengwin/ZIMA.git
+cd ZIMA
+cp .env.example .env
+# edit .env — at minimum set DATABASE_URL and SECRET_KEY
 ```
 
-### Production
+**Backend:**
 
 ```bash
-# Backend
-gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000 main:app
-
-# Frontend
-npm run build
-serve -s frontend/build -l 3000
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+python src/main.py
 ```
 
-## 🧪 Testing
+API docs are then at `http://localhost:8000/api/docs`.
 
-Run tests for each component:
+Want realistic dev data to work against instead of an empty database?
 
 ```bash
-# Backend tests
-pytest
+python -m scripts.seed_data --reset --profiles 300
+```
 
-# Frontend tests
+**Discord bot** (shares the same `.env` as the backend):
+
+```bash
+npm install
+npm start
+```
+
+**Frontend** (currently in active rebuild — see the note above):
+
+```bash
 cd src/frontend
-npm test
+npm install
+npm start
 ```
 
-## 🤝 Contributing
+**Or everything at once with Docker:**
+
+```bash
+docker compose up --build
+```
+
+## Testing
+
+```bash
+alembic upgrade head          # tests run against a real schema, not mocks
+python -m pytest tests/backend/
+```
+
+## API surface
+
+| | |
+|---|---|
+| `GET /api/v1/auth/discord/login` / `/callback` | Discord OAuth2 |
+| `POST /api/v1/profiles` · `GET/PUT /profiles/{id}` · `GET /profiles?q=` | Profile CRUD + search |
+| `GET /api/v1/profiles/{id}/stats` | Precomputed connection/project/match summary |
+| `GET /api/v1/profiles/{id}/roles` | Discord role-grant history |
+| `GET /api/v1/match/{user_id}` · `POST /match/request` · `PUT /match/requests/{id}` | Matching + connection requests |
+| `POST /api/v1/projects` · `GET /projects` · `POST /projects/{id}/join` | Projects |
+| `GET /api/v1/users/me/export` · `DELETE /users/me` | Data export / right-to-erasure |
+| `GET /api/v1/neurotypes` | The ten archetypes, machine-readable |
+
+Full interactive docs at `/api/docs` once the server is running.
+
+## Discord bot
+
+- `/setup-onboarding` — posts the onboarding flow in a channel
+- Completing onboarding grants the **Vetted** role automatically
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Write tests
+3. Write tests for behavior, not just syntax — this project runs its test
+   suite against a real database, not mocks
 4. Submit a pull request
 
-## 📄 License
+## License
 
-MIT License
+MIT
 
-## 📞 Support
+## Status
 
-For issues, questions, or contributions:
-- Open an issue on GitHub
-- Join our Discord community
-- Check the documentation
-
----
-
-**Status**: Active Development
-**Version**: 1.0.0
-**License**: MIT
+Backend and data layer are in active use and under test. The web frontend
+is mid-rebuild; `demo/` is the current live preview.

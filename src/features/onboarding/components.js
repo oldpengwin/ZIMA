@@ -91,6 +91,20 @@ export function parseSkills(raw) {
     .filter(Boolean);
 }
 
+// Splits the free-text "links" modal field into an array. Accepts
+// comma-separated or newline-separated input so the Discord long-text field
+// stays a single input for the user. This exists because the canonical
+// Postgres schema's `profiles.links` column is text[] (matching the richer
+// product data model), so the bot's write path needs to produce an array,
+// not the raw scalar string it previously passed through unparsed.
+export function parseLinks(raw) {
+  if (!raw) return [];
+  return raw
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function getModalField(modalSubmission, customId) {
   return modalSubmission.fields.getTextInputValue(customId);
 }

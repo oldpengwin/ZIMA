@@ -1,34 +1,57 @@
 # ZIMA Platform - Production Implementation Plan
 
+> **This is a forward-looking roadmap doc, internal-only.** For the actual
+> current state of the codebase (what's real, what's tested, what's still
+> broken/missing), read `README.internal.md` — that file is kept honest
+> turn by turn; this one is the longer-range plan and gets updated less
+> often. The checkmarks below were rewritten to reflect where things
+> actually stand as of the storage/caching/Discord-hooking pass, not the
+> original aspirational draft.
+
 ## Current State Analysis
 
 ### Existing Components
-- ✅ FastAPI backend with JWT auth (mock)
-- ✅ Neurotype matching algorithm (10 neurotypes, compatibility matrix)
-- ✅ PostgreSQL models (profiles, connections, projects)
-- ✅ React frontend with mock data
-- ✅ Discord bot structure
-- ✅ Beautiful demo HTML files (zima-globe.html, zima2.html)
-- ✅ Docker compose setup
-- ✅ Test structure with pytest
+- ✅ FastAPI backend with **real** Discord OAuth2 + dev-token auth (was mock)
+- ✅ Neurotype matching algorithm (10 neurotypes, compatibility matrix) — plus a
+  content-fingerprinted cache layer (`MatchScoreCache`) as of this pass
+- ✅ PostgreSQL models (profiles, connections, projects, orgs, resources,
+  messages, events, language entries, role grants, quest completions,
+  consent/deletion audit trail, match-score cache, profile stats cache) —
+  one canonical schema, real Alembic migrations
+- ⚠️ React frontend (`src/frontend/`) — still targets the pre-rebuild mocked
+  API shape; not yet rebuilt against the real backend (next planned phase)
+- ✅ Discord bot (discord.js, repo root) — onboarding is real and working;
+  a second, unwired Python bot also exists (`src/bot/`) and its fate is an
+  open decision, see README.internal.md
+- ✅ Demo HTML files (zima-globe.html, zima2.html) — live, deployed via Vercel
+- ✅ Docker compose setup — rewritten this pass (previous version's bot
+  Dockerfile pointed at a directory with no actual bot in it)
+- ✅ Real test suite (49 tests, pytest against a live Postgres instance, not
+  mocks) — the original test structure existed but had import-chain bugs
+  that meant it silently never actually ran
 
 ### Missing Features
 
 #### Phase 1: Authentication & Security (Priority)
-- [ ] Discord OAuth2 integration (replace mock auth)
-- [ ] Environment variable validation
-- [ ] Rate limiting with Redis
-- [ ] Input validation with Pydantic
-- [ ] Security headers and CORS hardening
+- [x] Discord OAuth2 integration (replace mock auth)
+- [x] Environment variable validation (`src/core/config.py`)
+- [ ] Rate limiting with Redis — `slowapi`/`redis` are in requirements.txt,
+      not wired into any route yet
+- [ ] Input validation with Pydantic — routes currently accept `Dict[str, Any]`
+      bodies validated by hand in the service layer, not typed Pydantic models
+- [x] Security headers and CORS hardening (CORS is settings-driven; see
+      nginx.conf for the security headers on the frontend's reverse proxy)
 
 #### Phase 2: Database & Models
-- [ ] Add pgvector extension for embeddings
-- [ ] Create Organization model
-- [ ] Create Resource model
-- [ ] Create Message model
-- [ ] Create LanguageEntry model
-- [ ] Add embedding column to Profile
-- [ ] Alembic migrations for new schema
+- [x] Add pgvector extension for embeddings (column exists — `profiles.embedding`)
+- [x] Create Organization model
+- [x] Create Resource model
+- [x] Create Message model
+- [x] Create LanguageEntry model
+- [x] Add embedding column to Profile — **column exists but is never
+      populated or queried**; `search_profiles` is plain ILIKE, not vector
+      search. This is real, tracked debt, not "done."
+- [x] Alembic migrations for new schema
 
 #### Phase 3: AI Integration
 - [ ] Sentence-transformers for embeddings (all-MiniLM-L6-v2)

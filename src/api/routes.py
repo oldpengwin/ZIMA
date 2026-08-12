@@ -1,229 +1,214 @@
 """
-FastAPI Routes for ZIMA Platform
+FastAPI routes for the ZIMA Platform.
 
-RESTful API endpoints with authentication and validation.
+Rewritten on top of the SQLAlchemy services layer (src/services/*) instead
+of the old raw-psycopg2 ProfileManager. Fixes applied vs. the previous
+version:
+  - `uuid.uuid4()` used without importing `uuid` (crashed POST /match/request)
+  - `TokenData` instantiated with kwargs but had no `__init__` (crashed every
+    real authenticated call) — see core/auth.py
+  - Auth was fully mocked (any password matched "mock_password"'s hash) —
+    replaced with real Discord OAuth2, see /auth/discord/*
+  - DB connection string and JWT secret were hardcoded — now read from
+    core/config.py, which fails loudly in production if unset
+  - Connection requests were faked in-memory ("in a real implementation this
+    would create a database record") — now real, via services/connection_service.py
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 import logging
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from ..core.profile_manager import ProfileManager, ProfileNotFoundError
-from ..core.neurotype_matcher import Profile, Neurotype
-from ..database.models import Profile as DBProfile
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
+from jose import jwt
+from sqlalchemy.orm import Session
 
+from src.core.auth import (
+    TokenData,
+    create_access_token,
+    discord_authorize_url,
+    exchange_discord_code,
+    get_current_user,
+)
+from src.core import discord_client
+from src.core.config import get_settings
+from src.core.neurotype_matcher import Neurotype
+from src.db.session import get_db
+from src.services import (
+    connection_service,
+    matching_service,
+    privacy_service,
+    profile_service,
+    project_service,
+    role_service,
+    stats_service,
+)
 
-# Configuration
-SECRET_KEY = "your-secret-key-here-change-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Security setup
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Logger
 logger = logging.getLogger(__name__)
-
-# Router
 router = APIRouter(prefix="/api/v1")
 
 
-class TokenData:
-    discord_id: str
-    username: str
+def _recompute_stats_best_effort(db: Session, *profile_ids: Optional[str]) -> None:
+    """Refreshes ProfileMatchStats for whichever profiles an action just
+    affected — e.g. both sides of a newly-accepted connection, or a
+    project's owner plus whoever just joined it. Best-effort and never
+    raises: a stats-cache refresh failing must not fail the write it's
+    attached to (the write already committed), but it's logged loudly, not
+    swallowed — see the module docstring in services/stats_service.py for
+    why this is triggered here rather than recomputed on every read."""
+    for profile_id in profile_ids:
+        if not profile_id:
+            continue
+        try:
+            stats_service.recompute_profile_stats(db, str(profile_id))
+        except Exception:
+            logger.exception("Best-effort stats recompute failed for profile_id=%s — stats may be briefly stale.", profile_id)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    """Hash password"""
-    return pwd_context.hash(password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
-    """Get current user from JWT token"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def _notify_discord_best_effort(discord_id: Optional[str], content: str) -> None:
+    """See core/discord_client.py — this is the Python-backend-pushes-to-Discord
+    half of the "hooking" the bot and API previously lacked. Wrapped again here
+    (discord_client's own functions already catch httpx errors) so a genuinely
+    unexpected exception in this layer still can't take down the response it's
+    attached to; it's logged either way, never silent."""
+    if not discord_id:
+        return
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        discord_id: str = payload.get("sub")
-        username: str = payload.get("username")
-        if discord_id is None or username is None:
-            raise credentials_exception
-        return TokenData(discord_id=discord_id, username=username)
-    except JWTError:
-        raise credentials_exception
+        await discord_client.send_dm(discord_id, content)
+    except Exception:
+        logger.exception("Unexpected error sending Discord DM to discord_id=%s", discord_id)
 
 
-def get_profile_manager() -> ProfileManager:
-    """Get profile manager instance"""
-    # In production, this would use dependency injection
-    # For now, we'll create a new instance
-    return ProfileManager(db_url="postgresql://user:password@localhost/zima")
+async def _revoke_discord_access_best_effort(discord_id: Optional[str]) -> None:
+    """Called after a real account deletion — the Discord side of "get rid of
+    their information without ruining everything else." A deleted account's
+    Vetted role granted during onboarding must not silently outlive the
+    account it was granted for."""
+    if not discord_id:
+        return
+    settings = get_settings()
+    try:
+        if settings.discord_vetted_role_id:
+            await discord_client.remove_guild_member_role(
+                discord_id, settings.discord_vetted_role_id, reason="ZIMA account deletion"
+            )
+        await discord_client.send_dm(
+            discord_id,
+            "Your ZIMA account and all associated data have been deleted, per your request. "
+            "If you didn't request this, contact a moderator immediately.",
+        )
+    except Exception:
+        logger.exception("Unexpected error revoking Discord access for discord_id=%s", discord_id)
 
 
-@router.post("/token", response_model=Dict[str, str])
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends()
-) -> Dict[str, str]:
-    """
-    OAuth2 compatible token login endpoint
+# ─────────────────────────────────── Auth ───────────────────────────────────
 
-    Args:
-        form_data: OAuth2 password form data
 
-    Returns:
-        Access token dictionary
+@router.get("/auth/discord/login")
+async def discord_login() -> RedirectResponse:
+    """Starts the real Discord OAuth2 flow. Returns 503 (not a fake success)
+    if DISCORD_CLIENT_ID/SECRET aren't configured — see core/config.py."""
+    settings = get_settings()
+    state = jwt.encode({"exp": time.time() + 600}, settings.secret_key, algorithm=settings.algorithm)
+    return RedirectResponse(discord_authorize_url(state))
 
-    Raises:
-        HTTPException: If authentication fails
-    """
-    # In a real implementation, this would verify against Discord OAuth
-    # For now, we'll use a mock user
-    user = {
-        "discord_id": "mock_user_id",
-        "username": form_data.username,
-        "hashed_password": get_password_hash("mock_password")
-    }
 
-    if not verify_password(form_data.password, user["hashed_password"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+@router.get("/auth/discord/callback")
+async def discord_callback(code: str, state: str, db: Session = Depends(get_db)) -> Dict[str, str]:
+    settings = get_settings()
+    try:
+        jwt.decode(state, settings.secret_key, algorithms=[settings.algorithm])
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OAuth state") from e
+
+    discord_user = await exchange_discord_code(code)
+    discord_id = discord_user["id"]
+    username = discord_user.get("username", discord_id)
+
+    profile = profile_service.get_profile_by_discord_id(db, discord_id)
+    if not profile:
+        profile = profile_service.create_profile(
+            db,
+            {
+                "discord_id": discord_id,
+                "discord_username": username,
+                "display_name": discord_user.get("global_name") or username,
+                "consented": True,
+                "consent_source": "discord_oauth_login",
+            },
         )
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user["discord_id"], "username": user["username"]},
-        expires_delta=access_token_expires
-    )
+    access_token = create_access_token(discord_id=discord_id, username=username)
+    return {"access_token": access_token, "token_type": "bearer", "profile_id": str(profile.id)}
 
+
+@router.post("/auth/dev-token")
+async def dev_token(discord_id: str, username: str = "dev-user") -> Dict[str, str]:
+    """Local/test-only: issues a real JWT for any discord_id, no password.
+    Hard-disabled outside development — see core/config.Settings.dev_auth_enabled."""
+    settings = get_settings()
+    if not settings.dev_auth_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    access_token = create_access_token(discord_id=discord_id, username=username)
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ─────────────────────────────────── Profiles ───────────────────────────────────
 
 
 @router.post("/profiles", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def create_profile(
     profile_data: Dict[str, Any],
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Create a new profile
-
-    Args:
-        profile_data: Profile data dictionary
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
-
-    Returns:
-        Created profile dictionary
-
-    Raises:
-        HTTPException: If profile creation fails
-    """
+    if profile_service.get_profile_by_discord_id(db, current_user.discord_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Profile already exists for this account")
+    profile_data["discord_id"] = current_user.discord_id
+    profile_data.setdefault("discord_username", current_user.username)
     try:
-        # Ensure user can only create their own profile
-        if profile_data.get("discord_id") != current_user.discord_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only create profile for yourself"
-            )
-
-        profile_data["discord_id"] = current_user.discord_id
-        profile_data["discord_username"] = current_user.username
-
-        profile = profile_manager.create_profile(profile_data)
-        return profile.to_dict()
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Profile creation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create profile"
-        )
+        profile = profile_service.create_profile(db, profile_data)
+    except profile_service.InvalidProfileDataError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except profile_service.DuplicateProfileError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    return profile.to_dict()
 
 
 @router.get("/profiles/me", response_model=Dict[str, Any])
 async def get_my_profile(
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Get current user's profile
-
-    Args:
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
-
-    Returns:
-        Profile dictionary
-
-    Raises:
-        HTTPException: If profile not found
-    """
-    profile = profile_manager.get_profile_by_discord_id(current_user.discord_id)
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
     if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     return profile.to_dict()
 
 
 @router.get("/profiles/{profile_id}", response_model=Dict[str, Any])
-async def get_profile(
-    profile_id: str,
-    profile_manager: ProfileManager = Depends(get_profile_manager)
-) -> Dict[str, Any]:
-    """
-    Get profile by ID
-
-    Args:
-        profile_id: Profile ID
-        profile_manager: Profile manager instance
-
-    Returns:
-        Profile dictionary
-
-    Raises:
-        HTTPException: If profile not found
-    """
-    profile = profile_manager.get_profile_by_id(profile_id)
+async def get_profile(profile_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    profile = profile_service.get_profile_by_id(db, profile_id)
     if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     return profile.to_dict()
+
+
+@router.get("/profiles/{profile_id}/stats", response_model=Dict[str, Any])
+async def get_profile_stats(profile_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Precomputed aggregate numbers (connections/projects/match summary) —
+    see services/stats_service.py. A single indexed read; the first-ever
+    call for a profile computes and caches it, every call after is free
+    until the next write-triggered recompute."""
+    if not profile_service.get_profile_by_id(db, profile_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    try:
+        stats = stats_service.get_or_compute_profile_stats(db, profile_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return stats.to_dict()
 
 
 @router.put("/profiles/{profile_id}", response_model=Dict[str, Any])
@@ -231,57 +216,29 @@ async def update_profile(
     profile_id: str,
     updates: Dict[str, Any],
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Update profile
-
-    Args:
-        profile_id: Profile ID to update
-        updates: Dictionary of fields to update
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
-
-    Returns:
-        Updated profile dictionary
-
-    Raises:
-        HTTPException: If update fails
-    """
+    profile = profile_service.get_profile_by_id(db, profile_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    if profile.discord_id != current_user.discord_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only update your own profile")
     try:
-        profile = profile_manager.get_profile_by_id(profile_id)
-        if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
+        updated = profile_service.update_profile(db, profile_id, updates)
+    except profile_service.InvalidProfileDataError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return updated.to_dict()
 
-        # Ensure user can only update their own profile
-        if profile.discord_id != current_user.discord_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only update your own profile"
-            )
 
-        updated_profile = profile_manager.update_profile(profile_id, updates)
-        return updated_profile.to_dict()
-
-    except ProfileNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Profile update failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update profile"
-        )
+@router.get("/profiles/{profile_id}/roles", response_model=List[Dict[str, Any]])
+async def get_profile_roles(profile_id: str, db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+    """Discord role grant history for a profile — written by the Node bot
+    (src/roles/roleManager.js) directly to the shared database, read here
+    for the first time. See services/role_service.py."""
+    profile = profile_service.get_profile_by_id(db, profile_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return [r.to_dict() for r in role_service.get_role_grants_for_discord_id(db, profile.discord_id)]
 
 
 @router.get("/profiles", response_model=List[Dict[str, Any]])
@@ -289,26 +246,16 @@ async def search_profiles(
     q: Optional[str] = Query(None, min_length=2),
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> List[Dict[str, Any]]:
-    """
-    Search profiles
-
-    Args:
-        q: Search query
-        limit: Maximum results
-        offset: Pagination offset
-        profile_manager: Profile manager instance
-
-    Returns:
-        List of matching profiles
-    """
     if q:
-        profiles = profile_manager.search_profiles(q, limit, offset)
+        profiles = profile_service.search_profiles(db, q, limit, offset)
     else:
-        profiles = profile_manager.get_all_profiles(limit, offset)
+        profiles = profile_service.get_all_profiles(db, limit, offset)
+    return [p.to_dict() for p in profiles]
 
-    return [profile.to_dict() for profile in profiles]
+
+# ─────────────────────────────────── Matching ───────────────────────────────────
 
 
 @router.get("/match/{user_id}", response_model=Dict[str, Any])
@@ -316,203 +263,246 @@ async def find_matches(
     user_id: str,
     limit: int = Query(5, ge=1, le=20),
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Find matches for a user
+    user_profile = profile_service.get_profile_by_id(db, user_id)
+    if not user_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user_profile.discord_id != current_user.discord_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only find matches for yourself")
 
-    Args:
-        user_id: User ID to find matches for
-        limit: Maximum number of matches
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
-
-    Returns:
-        Dictionary with matches and metadata
-
-    Raises:
-        HTTPException: If user not found or unauthorized
-    """
     try:
-        # Get user profile
-        user_profile = profile_manager.get_profile_by_id(user_id)
-        if not user_profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+        result = matching_service.find_matches(db, user_id, limit)
+    except matching_service.MatchingError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
-        # Ensure user can only find matches for themselves
-        if user_profile.discord_id != current_user.discord_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only find matches for yourself"
-            )
-
-        # Get all profiles for matching
-        all_profiles = profile_manager.get_all_profiles()
-
-        # Create matcher and find top matches
-        from ..core.neurotype_matcher import NeurotypeMatcher
-        matcher = NeurotypeMatcher(all_profiles)
-        matches = matcher.find_top_matches(user_id, limit)
-
-        # Format response
-        formatted_matches = []
-        for match in matches:
-            formatted_matches.append({
-                "profile": match["profile"].to_dict(),
-                "score": match["score"]
-            })
-
-        return {
-            "user_id": user_id,
-            "matches": formatted_matches,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-    except Exception as e:
-        logger.error(f"Match finding failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to find matches"
-        )
+    result["timestamp"] = datetime.now(timezone.utc).isoformat()
+    return result
 
 
 @router.post("/match/request", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def request_connection(
     request_data: Dict[str, Any],
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Request connection with another user
+    to_user_id = request_data.get("to_user_id")
+    if not to_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="to_user_id is required")
 
-    Args:
-        request_data: Connection request data
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
+    from_profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not from_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
 
-    Returns:
-        Created connection request
-
-    Raises:
-        HTTPException: If request fails
-    """
     try:
-        to_user_id = request_data.get("to_user_id")
-        message = request_data.get("message", "")
-
-        if not to_user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="to_user_id is required"
-            )
-
-        # Get both profiles
-        from_profile = profile_manager.get_profile_by_discord_id(current_user.discord_id)
-        to_profile = profile_manager.get_profile_by_id(to_user_id)
-
-        if not from_profile or not to_profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="One or both profiles not found"
-            )
-
-        # In a real implementation, this would create a database record
-        # For now, we'll simulate it
-        connection_request = {
-            "id": str(uuid.uuid4()),
-            "from_user_id": str(from_profile.id),
-            "to_user_id": str(to_profile.id),
-            "status": "pending",
-            "message": message,
-            "created_at": datetime.utcnow().isoformat()
-        }
-
-        return connection_request
-
-    except Exception as e:
-        logger.error(f"Connection request failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create connection request"
+        conn = connection_service.create_connection(
+            db, str(from_profile.id), to_user_id, request_data.get("message", "")
         )
+    except connection_service.DuplicateConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except connection_service.ConnectionServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    to_profile = profile_service.get_profile_by_id(db, to_user_id)
+    await _notify_discord_best_effort(
+        to_profile.discord_id if to_profile else None,
+        f"**{from_profile.display_name}** wants to connect on ZIMA: \"{conn.message or 'Let’s build something.'}\"\n"
+        f"Reply on the platform to accept or decline.",
+    )
+    return conn.to_dict()
 
 
 @router.get("/match/{user_id}/requests", response_model=Dict[str, Any])
 async def get_connection_requests(
     user_id: str,
     current_user: TokenData = Depends(get_current_user),
-    profile_manager: ProfileManager = Depends(get_profile_manager)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Get connection requests for a user
+    user_profile = profile_service.get_profile_by_id(db, user_id)
+    if not user_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user_profile.discord_id != current_user.discord_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only get your own connection requests")
 
-    Args:
-        user_id: User ID
-        current_user: Current authenticated user
-        profile_manager: Profile manager instance
+    connections = connection_service.get_connections_for_user(db, user_id)
+    return {
+        "user_id": user_id,
+        "requests": [c.to_dict() for c in connections],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
-    Returns:
-        Dictionary with connection requests
 
-    Raises:
-        HTTPException: If user not found or unauthorized
-    """
+@router.put("/match/requests/{connection_id}", response_model=Dict[str, Any])
+async def respond_to_connection(
+    connection_id: str,
+    body: Dict[str, str],
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    status_value = body.get("status")
+    if status_value not in {"accepted", "rejected", "cancelled"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="status must be accepted/rejected/cancelled")
     try:
-        # Get user profile
-        user_profile = profile_manager.get_profile_by_id(user_id)
-        if not user_profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+        conn = connection_service.update_connection_status(db, connection_id, status_value)
+    except connection_service.ConnectionNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    if status_value == "accepted":
+        # Both sides' connection counts just changed — refresh both, not on next read.
+        _recompute_stats_best_effort(db, conn.from_user_id, conn.to_user_id)
+        requester = profile_service.get_profile_by_id(db, str(conn.from_user_id))
+        accepter = profile_service.get_profile_by_id(db, str(conn.to_user_id))
+        if requester and accepter:
+            await _notify_discord_best_effort(
+                requester.discord_id,
+                f"**{accepter.display_name}** accepted your connection request on ZIMA. Say hi!",
             )
+    return conn.to_dict()
 
-        # Ensure user can only get their own requests
-        if user_profile.discord_id != current_user.discord_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only get your own connection requests"
-            )
 
-        # In a real implementation, this would query the database
-        # For now, return empty array
-        return {
-            "user_id": user_id,
-            "requests": [],
-            "timestamp": datetime.utcnow().isoformat()
-        }
+# ─────────────────────────────────── Projects ───────────────────────────────────
 
-    except Exception as e:
-        logger.error(f"Failed to get connection requests: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get connection requests"
-        )
+
+@router.post("/projects", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_project(
+    data: Dict[str, Any],
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
+    try:
+        project = project_service.create_project(db, str(owner.id), data)
+    except project_service.ProjectServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    _recompute_stats_best_effort(db, owner.id)
+    return project.to_dict()
+
+
+@router.get("/projects", response_model=List[Dict[str, Any]])
+async def list_projects(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    return [p.to_dict() for p in project_service.list_projects(db, status_filter, limit, offset)]
+
+
+@router.get("/projects/{project_id}", response_model=Dict[str, Any])
+async def get_project(project_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project.to_dict()
+
+
+@router.post("/projects/{project_id}/join", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def join_project(
+    project_id: str,
+    body: Dict[str, str] = {},
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
+    try:
+        participant = project_service.join_project(db, project_id, str(profile.id), body.get("role", "contributor"))
+    except project_service.ProjectNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except project_service.ProjectServiceError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    _recompute_stats_best_effort(db, profile.id)
+    return participant.to_dict()
+
+
+# ─────────────────────────────────── Privacy: export & deletion ───────────────────────────────────
+
+
+@router.get("/users/me/export", response_model=Dict[str, Any])
+async def export_my_data(
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """LinkedIn-style full data export for the authenticated user."""
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return privacy_service.export_user_data(db, str(profile.id))
+
+
+@router.get("/users/me/deletion-preview", response_model=Dict[str, int])
+async def preview_my_deletion(
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, int]:
+    """Shows what deleting your account would affect, before you commit to it."""
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return privacy_service.preview_deletion(db, str(profile.id))
+
+
+@router.delete("/users/me", response_model=Dict[str, Any])
+async def delete_my_account(
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Immediate deletion, no retention period, per the product's stated
+    consent-withdrawal policy. Returns the audit report of exactly what was
+    hard-deleted / nullified / anonymized so the caller can verify it."""
+    profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    discord_id = profile.discord_id  # captured before the row is hard-deleted below
+    report = privacy_service.delete_user(db, str(profile.id), requested_by="self")
+    await _revoke_discord_access_best_effort(discord_id)
+    return report
+
+
+@router.delete("/admin/users/{profile_id}", response_model=Dict[str, Any])
+async def admin_delete_user(
+    profile_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Admin-triggered deletion (e.g. for testing, or acting on a support
+    request). TODO(next pass): real role-based authorization — today any
+    authenticated user can call this, which is only acceptable because it's
+    not exposed publicly yet. Flagged here rather than silently shipped."""
+    logger.warning(
+        "admin_delete_user called by discord_id=%s for profile_id=%s — "
+        "role-based authorization is NOT YET implemented for this endpoint.",
+        current_user.discord_id,
+        profile_id,
+    )
+    target = profile_service.get_profile_by_id(db, profile_id)
+    discord_id = target.discord_id if target else None
+    try:
+        report = privacy_service.delete_user(db, profile_id, requested_by="admin")
+    except privacy_service.ProfileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    await _revoke_discord_access_best_effort(discord_id)
+    return report
+
+
+# ─────────────────────────────────── Neurotypes ───────────────────────────────────
 
 
 @router.get("/neurotypes", response_model=Dict[str, Any])
 async def get_neurotypes() -> Dict[str, Any]:
-    """
-    Get all neurotypes with descriptions
-
-    Returns:
-        Dictionary of neurotypes
-    """
     neurotypes = {}
     for neurotype in Neurotype:
         neurotypes[neurotype.value] = {
             "id": neurotype.value,
             "name": neurotype.name,
-            "description": get_neurotype_description(neurotype)
+            "description": _neurotype_description(neurotype),
         }
-
     return {"neurotypes": neurotypes}
 
 
-def get_neurotype_description(neurotype: Neurotype) -> str:
-    """Get description for neurotype"""
+def _neurotype_description(neurotype: Neurotype) -> str:
     descriptions = {
         Neurotype.SEEDCASTER: "They plant what others haven't imagined yet.",
         Neurotype.FABRICANT: "If it doesn't exist, they build it.",
@@ -523,6 +513,6 @@ def get_neurotype_description(neurotype: Neurotype) -> str:
         Neurotype.CHRONICLER: "They make sure the work gets seen.",
         Neurotype.CULTIVAR: "They bridge the lab and the land.",
         Neurotype.LOOMKEEPER: "They hold the network together.",
-        Neurotype.VERDANT: "They change the rules of the game."
+        Neurotype.VERDANT: "They change the rules of the game.",
     }
     return descriptions.get(neurotype, "Unknown neurotype")

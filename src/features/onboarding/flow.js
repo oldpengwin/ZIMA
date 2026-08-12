@@ -6,6 +6,7 @@ import {
   buildStartRow,
   buildWelcomeEmbed,
   getModalField,
+  parseLinks,
   parseSkills,
 } from './components.js';
 import { CUSTOM_IDS } from './constants.js';
@@ -40,7 +41,7 @@ export async function handleProfileModal(interaction) {
   const location = getModalField(interaction, CUSTOM_IDS.FIELD_LOCATION);
   const skills = parseSkills(getModalField(interaction, CUSTOM_IDS.FIELD_SKILLS));
   const bio = getModalField(interaction, CUSTOM_IDS.FIELD_BIO) || null;
-  const links = getModalField(interaction, CUSTOM_IDS.FIELD_LINKS) || null;
+  const links = parseLinks(getModalField(interaction, CUSTOM_IDS.FIELD_LINKS));
   const discordUsername = interaction.user.username;
 
   try {

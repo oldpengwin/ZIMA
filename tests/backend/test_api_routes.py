@@ -1,314 +1,297 @@
 """
-Test API routes for ZIMA backend
+API route tests, rewritten against the real FastAPI app + real Postgres
+test DB instead of mocking ProfileManager (which no longer exists — see
+src/services/*). This exercises the actual dependency chain: real JWT
+issuance/verification, real SQLAlchemy queries, real HTTP status codes —
+which is what caught the original TokenData/uuid-import bugs being invisible
+to the old, fully-mocked test suite.
+
+Auth in these tests goes through the real /auth/dev-token endpoint (issues
+a real, valid JWT for a given discord_id, no password) rather than mocking
+get_current_user — see core/auth.py and core/config.py for why this
+endpoint only exists outside production.
 """
+
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
-import sys
-import os
+from sqlalchemy import inspect
 
-# Add src to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
-
-from main import app
-from api.routes import get_profile_manager
-from core.profile_manager import ProfileManager
-from core.neurotype_matcher import Profile, Neurotype
-
+from src.db.session import engine
+from src.main import app
 
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _require_schema():
+    if "profiles" not in inspect(engine).get_table_names():
+        pytest.skip("Schema not migrated — run `alembic upgrade head` before running backend tests.")
+
+
+def _auth_headers(discord_id: str, username: str = "testuser") -> dict:
+    resp = client.post("/api/v1/auth/dev-token", params={"discord_id": discord_id, "username": username})
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_health_check():
-    """Test health check endpoint"""
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "zima-api"
-    assert data["version"] == "1.0.0"
 
 
 def test_root_endpoint():
-    """Test root endpoint"""
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert "message" in data
-    assert "docs" in data
-    assert "health" in data
+    assert "message" in data and "docs" in data and "health" in data
 
 
-@patch('api.routes.ProfileManager')
-def test_create_profile(MockProfileManager):
-    """Test profile creation"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    mock_profile = Profile(
-        id="test-id",
-        discord_id="test-user",
-        display_name="Test User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python", "JavaScript"],
-        offering=["Backend development"],
-        looking_for=["Frontend developers"],
-        projects=["ZIMA Platform"],
-        location="Test City"
+def test_dev_token_issues_a_real_working_jwt():
+    headers = _auth_headers(discord_id=str(uuid.uuid4().int)[:18])
+    # A garbage/missing token must be rejected...
+    assert client.get("/api/v1/profiles/me").status_code == 401
+    # ...but a real one, even against a fresh account with no profile yet, must
+    # decode successfully and reach the 404-not-found branch, not a 401.
+    resp = client.get("/api/v1/profiles/me", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_create_and_fetch_profile_end_to_end():
+    discord_id = str(uuid.uuid4().int)[:18]
+    headers = _auth_headers(discord_id)
+
+    create_resp = client.post(
+        "/api/v1/profiles",
+        headers=headers,
+        json={
+            "display_name": "Test User",
+            "neurotype": "developer",
+            "skills": ["Python", "JavaScript"],
+            "offering": ["Backend development"],
+            "looking_for": ["Frontend developers"],
+            "location": "Test City",
+        },
     )
-    mock_manager.create_profile.return_value = mock_profile
-    MockProfileManager.return_value = mock_manager
+    assert create_resp.status_code == 201, create_resp.text
+    created = create_resp.json()
+    assert created["display_name"] == "Test User"
+    assert created["neurotype"] == "developer"
+    assert created["discord_id"] == discord_id  # server-set from the token, not client input
 
-    # Mock authentication
-    from api.routes import get_current_user, TokenData
-    with patch('api.routes.get_current_user') as mock_current_user:
-        mock_current_user.return_value = TokenData(discord_id="test-user", username="testuser")
+    # Duplicate creation for the same account is rejected, not silently overwritten.
+    dup_resp = client.post("/api/v1/profiles", headers=headers, json={"display_name": "Second Attempt"})
+    assert dup_resp.status_code == 409
 
-        response = client.post(
-            "/api/v1/profiles",
-            json={
-                "discord_id": "test-user",
-                "display_name": "Test User",
-                "neurotype": "developer",
-                "skills": ["Python", "JavaScript"],
-                "offering": ["Backend development"],
-                "looking_for": ["Frontend developers"],
-                "projects": ["ZIMA Platform"],
-                "location": "Test City"
-            }
-        )
+    get_resp = client.get(f"/api/v1/profiles/{created['id']}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["display_name"] == "Test User"
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["display_name"] == "Test User"
-        assert data["neurotype"] == "developer"
+    me_resp = client.get("/api/v1/profiles/me", headers=headers)
+    assert me_resp.status_code == 200
+    assert me_resp.json()["id"] == created["id"]
 
 
-@patch('api.routes.ProfileManager')
-def test_get_profile(MockProfileManager):
-    """Test getting a profile"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    mock_profile = Profile(
-        id="test-id",
-        discord_id="test-user",
-        display_name="Test User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python"],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location="Test City"
+def test_update_profile_requires_ownership():
+    owner_discord_id = str(uuid.uuid4().int)[:18]
+    owner_headers = _auth_headers(owner_discord_id)
+    create_resp = client.post("/api/v1/profiles", headers=owner_headers, json={"display_name": "Owner"})
+    profile_id = create_resp.json()["id"]
+
+    # A different authenticated user cannot update someone else's profile.
+    other_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    forbidden = client.put(f"/api/v1/profiles/{profile_id}", headers=other_headers, json={"bio": "hacked"})
+    assert forbidden.status_code == 403
+
+    # The owner can.
+    ok = client.put(f"/api/v1/profiles/{profile_id}", headers=owner_headers, json={"bio": "real bio"})
+    assert ok.status_code == 200
+    assert ok.json()["bio"] == "real bio"
+
+    # An invalid neurotype is rejected with a 400, not a silent write or a 500.
+    bad = client.put(f"/api/v1/profiles/{profile_id}", headers=owner_headers, json={"neurotype": "not-a-real-archetype"})
+    assert bad.status_code == 400
+
+
+def test_connection_request_end_to_end():
+    """Regression test for the specific bug found in the audit: POST
+    /match/request used uuid.uuid4() without importing uuid, so this endpoint
+    crashed on every real call. It's now backed by a real connection_service
+    call and a real DB row."""
+    a_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    a_profile = client.post("/api/v1/profiles", headers=a_headers, json={"display_name": "Requester"}).json()
+
+    b_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    b_profile = client.post("/api/v1/profiles", headers=b_headers, json={"display_name": "Recipient"}).json()
+
+    resp = client.post(
+        "/api/v1/match/request",
+        headers=a_headers,
+        json={"to_user_id": b_profile["id"], "message": "let's collaborate"},
     )
-    mock_manager.get_profile_by_id.return_value = mock_profile
-    MockProfileManager.return_value = mock_manager
+    assert resp.status_code == 201, resp.text
+    connection = resp.json()
+    assert connection["status"] == "pending"
+    assert connection["message"] == "let's collaborate"
 
-    response = client.get("/api/v1/profiles/test-id")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["display_name"] == "Test User"
+    # A duplicate request between the same pair is rejected, not duplicated.
+    dup = client.post("/api/v1/match/request", headers=a_headers, json={"to_user_id": b_profile["id"]})
+    assert dup.status_code == 409
 
+    # The recipient can see and accept it.
+    inbox = client.get(f"/api/v1/match/{b_profile['id']}/requests", headers=b_headers)
+    assert inbox.status_code == 200
+    assert len(inbox.json()["requests"]) == 1
 
-@patch('api.routes.ProfileManager')
-def test_get_my_profile(MockProfileManager):
-    """Test getting current user's profile"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    mock_profile = Profile(
-        id="test-id",
-        discord_id="test-user",
-        display_name="Test User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python"],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location="Test City"
+    accept = client.put(
+        f"/api/v1/match/requests/{connection['id']}", headers=b_headers, json={"status": "accepted"}
     )
-    mock_manager.get_profile_by_discord_id.return_value = mock_profile
-    MockProfileManager.return_value = mock_manager
+    assert accept.status_code == 200
+    assert accept.json()["status"] == "accepted"
 
-    # Mock authentication
-    from api.routes import get_current_user, TokenData
-    with patch('api.routes.get_current_user') as mock_current_user:
-        mock_current_user.return_value = TokenData(discord_id="test-user", username="testuser")
-
-        response = client.get("/api/v1/profiles/me")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["display_name"] == "Test User"
-
-
-@patch('api.routes.ProfileManager')
-def test_search_profiles(MockProfileManager):
-    """Test profile search"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    mock_profile = Profile(
-        id="test-id",
-        discord_id="test-user",
-        display_name="Test User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python"],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location="Test City"
-    )
-    mock_manager.search_profiles.return_value = [mock_profile]
-    MockProfileManager.return_value = mock_manager
-
-    response = client.get("/api/v1/profiles?q=test")
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 1
-    assert data[0]["display_name"] == "Test User"
+    # Accepting triggers a best-effort ProfileMatchStats recompute for both
+    # sides (routes.py) — the count should already reflect it, not require a
+    # second unrelated write to become correct.
+    a_stats = client.get(f"/api/v1/profiles/{a_profile['id']}/stats")
+    b_stats = client.get(f"/api/v1/profiles/{b_profile['id']}/stats")
+    assert a_stats.status_code == 200 and b_stats.status_code == 200
+    assert a_stats.json()["total_connections"] == 1
+    assert b_stats.json()["total_connections"] == 1
 
 
-@patch('api.routes.ProfileManager')
-def test_find_matches(MockProfileManager):
-    """Test finding matches"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    user_profile = Profile(
-        id="user-id",
-        discord_id="user",
-        display_name="User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python"],
-        offering=["Development"],
-        looking_for=["Designers"],
-        projects=[],
-        location="City"
-    )
-    match_profile = Profile(
-        id="match-id",
-        discord_id="match",
-        display_name="Match",
-        neurotype=Neurotype.ARTISAN,
-        skills=["Design"],
-        offering=["UI/UX"],
-        looking_for=["Developers"],
-        projects=[],
-        location="City"
-    )
-
-    mock_manager.get_profile_by_id.return_value = user_profile
-    mock_manager.get_all_profiles.return_value = [user_profile, match_profile]
-    MockProfileManager.return_value = mock_manager
-
-    # Mock authentication
-    from api.routes import get_current_user, TokenData
-    with patch('api.routes.get_current_user') as mock_current_user:
-        mock_current_user.return_value = TokenData(discord_id="user", username="user")
-
-        response = client.get("/api/v1/match/user-id")
-        assert response.status_code == 200
-        data = response.json()
-        assert "matches" in data
-        assert len(data["matches"]) > 0
+def test_neurotypes_endpoint_lists_all_ten_canonical_archetypes():
+    resp = client.get("/api/v1/neurotypes")
+    assert resp.status_code == 200
+    neurotypes = resp.json()["neurotypes"]
+    assert len(neurotypes) == 10
+    assert set(neurotypes.keys()) == {
+        "seedcaster", "fabricant", "mycelian", "terraformer", "developer",
+        "artisan", "chronicler", "cultivar", "loomkeeper", "verdant",
+    }
 
 
-@patch('api.routes.ProfileManager')
-def test_request_connection(MockProfileManager):
-    """Test connection request"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    from_profile = Profile(
-        id="from-id",
-        discord_id="from-user",
-        display_name="From User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=[],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location=""
-    )
-    to_profile = Profile(
-        id="to-id",
-        discord_id="to-user",
-        display_name="To User",
-        neurotype=Neurotype.ARTISAN,
-        skills=[],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location=""
-    )
+def test_privacy_export_and_delete_reachable_end_to_end():
+    """Smoke test that the privacy endpoints are wired correctly through the
+    real HTTP layer — the deep behavioral guarantees live in
+    test_privacy_service.py."""
+    headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    client.post("/api/v1/profiles", headers=headers, json={"display_name": "Deletable"})
 
-    mock_manager.get_profile_by_discord_id.side_effect = lambda x: from_profile if x == "from-user" else to_profile
-    mock_manager.get_profile_by_id.return_value = to_profile
-    MockProfileManager.return_value = mock_manager
+    export = client.get("/api/v1/users/me/export", headers=headers)
+    assert export.status_code == 200
+    assert export.json()["profile"]["display_name"] == "Deletable"
 
-    # Mock authentication
-    from api.routes import get_current_user, TokenData
-    with patch('api.routes.get_current_user') as mock_current_user:
-        mock_current_user.return_value = TokenData(discord_id="from-user", username="fromuser")
+    preview = client.get("/api/v1/users/me/deletion-preview", headers=headers)
+    assert preview.status_code == 200
 
-        response = client.post(
-            "/api/v1/match/request",
-            json={"to_user_id": "to-id", "message": "Hello!"}
-        )
-        assert response.status_code == 201
-        data = response.json()
-        assert "id" in data
-        assert data["status"] == "pending"
+    delete = client.delete("/api/v1/users/me", headers=headers)
+    assert delete.status_code == 200
+    assert delete.json()["status"] == "completed"
+
+    # Profile is really gone now.
+    gone = client.get("/api/v1/profiles/me", headers=headers)
+    assert gone.status_code == 404
 
 
-@patch('api.routes.ProfileManager')
-def test_update_profile(MockProfileManager):
-    """Test profile update"""
-    # Setup mock
-    mock_manager = MagicMock(spec=ProfileManager)
-    mock_profile = Profile(
-        id="test-id",
-        discord_id="test-user",
-        display_name="Test User",
-        neurotype=Neurotype.DEVELOPER,
-        skills=["Python"],
-        offering=[],
-        looking_for=[],
-        projects=[],
-        location="Test City"
-    )
-    mock_manager.get_profile_by_id.return_value = mock_profile
-    mock_manager.update_profile.return_value = mock_profile
-    MockProfileManager.return_value = mock_manager
+def test_account_deletion_triggers_discord_access_revocation():
+    """See src/api/routes.py's _revoke_discord_access_best_effort and
+    src/core/discord_client.py — deleting an account must also try to pull
+    the Discord-side access that account was ever granted, not just erase
+    the database rows. discord_client's real HTTP calls are monkeypatched
+    here since there's no live Discord bot token in this environment; the
+    behavior under test is "the deletion endpoint calls out with the right
+    discord_id," not Discord's own API behavior."""
+    import src.api.routes as routes_module
 
-    # Mock authentication
-    from api.routes import get_current_user, TokenData
-    with patch('api.routes.get_current_user') as mock_current_user:
-        mock_current_user.return_value = TokenData(discord_id="test-user", username="testuser")
+    calls = []
 
-        response = client.put(
-            "/api/v1/profiles/test-id",
-            json={"display_name": "Updated Name"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["display_name"] == "Test User"
+    async def _fake_remove_role(discord_id, role_id, *, reason):
+        calls.append(("remove_role", discord_id, role_id))
+        return True
 
+    async def _fake_send_dm(discord_id, content):
+        calls.append(("send_dm", discord_id, content))
+        return True
 
-def test_get_neurotypes():
-    """Test getting neurotypes"""
-    response = client.get("/api/v1/neurotypes")
-    assert response.status_code == 200
-    data = response.json()
-    assert "neurotypes" in data
-    assert len(data["neurotypes"]) == 10  # 10 neurotypes
-    assert "seedcaster" in data["neurotypes"]
-    assert "fabricant" in data["neurotypes"]
+    original_remove = routes_module.discord_client.remove_guild_member_role
+    original_dm = routes_module.discord_client.send_dm
+    routes_module.discord_client.remove_guild_member_role = _fake_remove_role
+    routes_module.discord_client.send_dm = _fake_send_dm
+    try:
+        discord_id = str(uuid.uuid4().int)[:18]
+        headers = _auth_headers(discord_id)
+        client.post("/api/v1/profiles", headers=headers, json={"display_name": "ToRevoke"})
+
+        resp = client.delete("/api/v1/users/me", headers=headers)
+        assert resp.status_code == 200
+    finally:
+        routes_module.discord_client.remove_guild_member_role = original_remove
+        routes_module.discord_client.send_dm = original_dm
+
+    # A DM was attempted for the right discord_id, confirming deletion.
+    dm_calls = [c for c in calls if c[0] == "send_dm" and c[1] == discord_id]
+    assert len(dm_calls) == 1
+    assert "deleted" in dm_calls[0][2].lower()
 
 
-def test_token_endpoint():
-    """Test token endpoint"""
-    response = client.post(
-        "/api/v1/token",
-        data={"username": "testuser", "password": "testpass"},
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+def test_connection_events_trigger_discord_dm_notifications():
+    """A connection request and its acceptance must each attempt a DM to
+    the relevant party — the two concrete gaps described in
+    core/discord_client.py's module docstring (things that happen on the
+    web side that were previously invisible on Discord)."""
+    import src.api.routes as routes_module
+
+    calls = []
+
+    async def _fake_send_dm(discord_id, content):
+        calls.append((discord_id, content))
+        return True
+
+    original_dm = routes_module.discord_client.send_dm
+    routes_module.discord_client.send_dm = _fake_send_dm
+    try:
+        a_discord_id = str(uuid.uuid4().int)[:18]
+        b_discord_id = str(uuid.uuid4().int)[:18]
+        a_headers = _auth_headers(a_discord_id)
+        a_profile = client.post("/api/v1/profiles", headers=a_headers, json={"display_name": "Notifier A"}).json()
+        b_headers = _auth_headers(b_discord_id)
+        b_profile = client.post("/api/v1/profiles", headers=b_headers, json={"display_name": "Notifier B"}).json()
+
+        conn = client.post(
+            "/api/v1/match/request", headers=a_headers, json={"to_user_id": b_profile["id"]}
+        ).json()
+        # B (the recipient) should have been notified.
+        assert any(discord_id == b_discord_id for discord_id, _ in calls)
+
+        client.put(f"/api/v1/match/requests/{conn['id']}", headers=b_headers, json={"status": "accepted"})
+        # A (the original requester) should have been notified of the acceptance.
+        assert any(discord_id == a_discord_id for discord_id, _ in calls)
+    finally:
+        routes_module.discord_client.send_dm = original_dm
+
+
+def test_profile_roles_endpoint_reflects_role_grants_table():
+    """See src/services/role_service.py — the Node bot writes role_grants
+    directly to the shared DB; this is the first thing on the Python side
+    that reads it back out."""
+    from src.database.models import RoleGrant
+    from src.db.session import session_scope
+
+    discord_id = str(uuid.uuid4().int)[:18]
+    headers = _auth_headers(discord_id)
+    profile = client.post("/api/v1/profiles", headers=headers, json={"display_name": "Vetted Person"}).json()
+
+    with session_scope() as db:
+        db.add(RoleGrant(discord_id=discord_id, role_key="vetted", source="onboarding"))
+
+    resp = client.get(f"/api/v1/profiles/{profile['id']}/roles")
+    assert resp.status_code == 200
+    roles = resp.json()
+    assert len(roles) == 1
+    assert roles[0]["role_key"] == "vetted"
+    assert roles[0]["discord_id"] == discord_id

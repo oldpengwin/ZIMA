@@ -1,15 +1,36 @@
 # Discord Bot Dockerfile
+#
+# Builds the REAL bot — discord.js, repo root (src/index.js, package.json).
+# The previous version of this file built from src/bot/, which is a
+# different, dead, unwired second Discord bot (a Python discord.py cog —
+# see src/bot/cogs/matching.py) that has no package.json and no index.js at
+# all; `COPY src/bot/package*.json ./` would fail outright the moment this
+# was actually built, which is why this is being fixed now rather than
+# discovered at deploy time. See README.internal.md for the open question
+# of whether src/bot/ should be deleted outright.
+
 FROM node:18-alpine
 
-# Set work directory
+ENV NODE_ENV=production
+
 WORKDIR /app
 
-# Install dependencies
-COPY src/bot/package*.json ./
-RUN npm install
+# Install dependencies first (better layer caching than copying source first).
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Copy source files
-COPY src/bot ./
+# Copy only what the bot actually needs at runtime — not migrations/, tests/,
+# the Python backend, or the frontend.
+COPY src/config.js ./src/config.js
+COPY src/index.js ./src/index.js
+COPY src/register-commands.js ./src/register-commands.js
+COPY src/db/supabase.js ./src/db/supabase.js
+COPY src/features ./src/features
+COPY src/handlers ./src/handlers
+COPY src/roles ./src/roles
 
-# Run the bot
-CMD ["node", "index.js"]
+# Runs as the non-root `node` user the base image already provides —
+# no extra RUN useradd needed.
+USER node
+
+CMD ["node", "src/index.js"]

@@ -1,32 +1,46 @@
 # Backend Dockerfile
-FROM python:3.9-slim
+#
+# Notable changes from the original version of this file: bumped to
+# python:3.11 (3.9 is EOL-adjacent and older than what's been developed/
+# tested against this pass — 3.11), runs as a non-root user, runs
+# migrations on container start instead of expecting a human to remember
+# `alembic upgrade head`, and serves via gunicorn+uvicorn workers (gunicorn
+# was already in requirements.txt but nothing was actually using it — the
+# old CMD ran a single bare `uvicorn` process, fine for local dev, not for
+# production concurrency).
+FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PIP_NO_CACHE_DIR=off
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set work directory
 WORKDIR /app
 
-# Install Python dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy only what the backend actually needs at runtime — not the bot,
+# frontend, or demo assets, which have their own images.
+COPY src ./src
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
+COPY scripts ./scripts
+COPY conftest.py ./conftest.py
+COPY docker-entrypoint.backend.sh ./docker-entrypoint.backend.sh
+RUN chmod +x ./docker-entrypoint.backend.sh
 
-# Collect static files (if any)
-RUN mkdir -p /app/static
+RUN useradd --create-home --uid 1000 zima && chown -R zima:zima /app
+USER zima
 
-# Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["./docker-entrypoint.backend.sh"]

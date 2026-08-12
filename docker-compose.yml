@@ -1,7 +1,7 @@
-version: '3.8'
-
 services:
-  # Backend API
+  # Backend API (FastAPI). Runs pending Alembic migrations on startup —
+  # see docker-entrypoint.backend.sh — so `db` only needs to exist and be
+  # accepting connections, not already be migrated.
   api:
     build:
       context: .
@@ -10,15 +10,22 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - NODE_ENV=production
+      # Explicit, not just relying on config.py's NODE_ENV fallback — this
+      # is the value that actually gates production behavior (strict config
+      # validation, the /auth/dev-token backdoor being disabled). Override
+      # per-environment via .env; this is the safe default for `docker
+      # compose up` as shipped.
+      - ENVIRONMENT=production
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - zima-network
 
-  # Frontend
+  # Frontend — see the note at the top of Dockerfile.frontend: this is the
+  # pre-rebuild frontend, not the finished product.
   frontend:
     build:
       context: .
@@ -27,23 +34,29 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    depends_on:
+      - api
     networks:
       - zima-network
 
-  # Discord Bot
+  # Discord Bot (Node.js/discord.js, repo root — see the note at the top of
+  # Dockerfile.bot about what this used to build instead).
   bot:
     build:
       context: .
       dockerfile: Dockerfile.bot
     container_name: zima-bot
     restart: unless-stopped
-    env_file: src/bot/.env
+    # Was `src/bot/.env`, a path that doesn't exist — the bot reads its
+    # config from the repo-root .env, same file the API uses (they're two
+    # processes against one shared config surface, see .env.example).
+    env_file: .env
     networks:
       - zima-network
 
   # Database
   db:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: zima-db
     restart: unless-stopped
     environment:
@@ -52,19 +65,30 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-zima}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Not published to the host by default — the API/bot reach it over the
+    # compose network by service name (`db`). Uncomment only for local
+    # debugging with an external DB client; a database port open on the
+    # host is unnecessary attack surface in anything resembling production.
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zima} -d ${POSTGRES_DB:-zima}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - zima-network
 
-  # PGAdmin (optional)
+  # PGAdmin — dev convenience only. `docker compose up` (no profile) does
+  # NOT start this; run `docker compose --profile dev up` to include it.
   pgadmin:
     image: dpage/pgadmin4
     container_name: zima-pgadmin
     restart: unless-stopped
+    profiles: ["dev"]
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin_password}
     ports:
       - "5050:80"
     depends_on:

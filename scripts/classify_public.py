@@ -6,12 +6,12 @@ This private repo is the team's single source of truth. A separate PUBLIC
 mirror repo is generated from it, containing ONLY the files that have been
 explicitly marked public here. The guiding rule is DENY-BY-DEFAULT: a file
 is private unless it is on the allowlist, so forgetting about a file can
-never leak it — the only way to expose something is to actively add it.
+never leak it - the only way to expose something is to actively add it.
 
 Three plain, gitignore-style control files at the repo root drive this:
 
   .public-allow    globs that ARE published to the public mirror
-  .public-deny     hard fuse — always wins over allow, even by accident
+  .public-deny     hard fuse - always wins over allow, even by accident
                    (secrets, the matching algorithm / core IP, internal docs)
   .public-exclude  files a human has reviewed and deliberately kept private
                    (so `--check` stays quiet and interactive stops re-asking)
@@ -51,7 +51,7 @@ DENY_FILE = ".public-deny"
 EXCLUDE_FILE = ".public-exclude"
 
 
-# ─────────────────────────────── glob matching ───────────────────────────────
+# ------------------------------- glob matching -------------------------------
 #
 # gitignore-style matching, stdlib-only (no pathspec dependency):
 #   **   matches across path separators (any number of segments)
@@ -74,7 +74,7 @@ def _translate(pattern: str) -> re.Pattern[str]:
         c = pattern[i]
         if c == "*":
             if i + 1 < n and pattern[i + 1] == "*":
-                # "**" — consume it (and an immediately following "/") and match
+                # "**" - consume it (and an immediately following "/") and match
                 # any run of characters including separators.
                 i += 2
                 if i < n and pattern[i] == "/":
@@ -96,7 +96,7 @@ def _matches_any(path: str, patterns: Sequence[re.Pattern[str]]) -> bool:
     return any(p.match(path) for p in patterns)
 
 
-# ─────────────────────────────── control files ───────────────────────────────
+# ------------------------------- control files -------------------------------
 
 
 def _read_patterns(root: Path, name: str) -> List[str]:
@@ -136,7 +136,7 @@ def _tracked_files(root: Path) -> List[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-# ─────────────────────────────── classification ───────────────────────────────
+# ------------------------------- classification -------------------------------
 
 
 class Classification:
@@ -157,7 +157,7 @@ class Classification:
         return "undecided"
 
     def conflicts(self, files: Sequence[str]) -> List[str]:
-        """Files matched by BOTH allow and deny — a contradiction to fix."""
+        """Files matched by BOTH allow and deny - a contradiction to fix."""
         return [
             f
             for f in files
@@ -171,7 +171,7 @@ class Classification:
         return out
 
 
-# ─────────────────────────────── commands ───────────────────────────────
+# ------------------------------- commands -------------------------------
 
 
 def cmd_list(root: Path) -> int:
@@ -211,7 +211,7 @@ def cmd_check(root: Path) -> int:
     undecided = cls.buckets(files)["undecided"]
     if undecided:
         problems += len(undecided)
-        print("ERROR: tracked files are unclassified — mark each public or private first:", file=sys.stderr)
+        print("ERROR: tracked files are unclassified - mark each public or private first:", file=sys.stderr)
         print("       run:  python scripts/classify_public.py", file=sys.stderr)
         for f in sorted(undecided):
             print(f"  ? {f}", file=sys.stderr)
@@ -229,7 +229,7 @@ def cmd_interactive(root: Path) -> int:
     cls = Classification(root)
     undecided = sorted(cls.buckets(_tracked_files(root))["undecided"])
     if not undecided:
-        print("Nothing to classify — every tracked file is already public, private, or blocked.")
+        print("Nothing to classify - every tracked file is already public, private, or blocked.")
         return 0
 
     if not sys.stdin.isatty():
@@ -249,7 +249,7 @@ def cmd_interactive(root: Path) -> int:
                 print(f"    - kept private: added to {EXCLUDE_FILE}")
                 break
             if choice in ("s", "skip"):
-                print("    (skipped — still undecided)")
+                print("    (skipped - still undecided)")
                 break
             if choice in ("q", "quit"):
                 print("\nStopped. Remaining files are still undecided.")
@@ -263,14 +263,14 @@ def cmd_keep_rest_private(root: Path) -> int:
     cls = Classification(root)
     undecided = sorted(cls.buckets(_tracked_files(root))["undecided"])
     if not undecided:
-        print("Nothing undecided — every tracked file is already classified.")
+        print("Nothing undecided - every tracked file is already classified.")
         return 0
     for f in undecided:
         _append_pattern(root, EXCLUDE_FILE, f)
     print(f"Marked {len(undecided)} undecided file(s) as private (added to {EXCLUDE_FILE}):")
     for f in undecided:
         print(f"  - {f}")
-    print("\nPublic tier is unchanged — edit .public-allow to publish any of these later.")
+    print("\nPublic tier is unchanged - edit .public-allow to publish any of these later.")
     return 0
 
 

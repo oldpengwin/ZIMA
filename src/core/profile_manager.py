@@ -1,6 +1,14 @@
 """
 Profile Manager for ZIMA Platform
 
+DEPRECATED as of the backend-rebuild pass: the FastAPI backend (src/api/routes.py)
+now uses the SQLAlchemy-based src/services/*.py layer instead of this raw-psycopg2
+implementation. This file is kept only because src/bot/cogs/matching.py (a second,
+unwired Python Discord bot — see zima_codebase_audit memory) still imports it, and
+that bot's fate (retire vs. reconcile with the Node bot) is a decision flagged for
+Frost rather than something to resolve unilaterally here. Do not build new features
+against this module — use src/services/ instead.
+
 Handles CRUD operations for user profiles with PostgreSQL database.
 """
 

@@ -63,7 +63,7 @@ gunicorn==22.0.0
 # Testing / seed data
 # httpx is also a RUNTIME dep now (src/core/auth.py uses it for the real Discord
 # OAuth2 token exchange), not just the test client.
-pytest==8.0.0                  # NOTE: CVE-2025-71176 (dev-only, low) is fixed in 9.0.3 — a pytest major bump; left for a tested upgrade
+pytest==9.0.3                  # NOTE: CVE-2025-71176 (dev-only, low) is fixed in 9.0.3 — a pytest major bump; left for a tested upgrade
 pytest==9.0.3
 httpx==0.26.0
 pytest-asyncio==0.23.5

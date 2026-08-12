@@ -93,6 +93,18 @@ def require_bot_service(x_bot_key: Optional[str] = Header(default=None, alias="X
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing bot service key",
         )
+def require_admin(current_user: TokenData = Depends(get_current_user)) -> TokenData:
+    """Authorization gate for admin-only endpoints. A caller is an admin iff
+    their Discord id is listed in ADMIN_DISCORD_IDS (see core/config.py). An
+    empty list means nobody is an admin — fail-closed — so a missing config
+    denies everyone rather than leaving admin actions open to any logged-in user."""
+    settings = get_settings()
+    if current_user.discord_id not in settings.admin_discord_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
 
 
 def discord_authorize_url(state: str) -> str:

@@ -88,7 +88,7 @@ def test_create_and_fetch_profile_end_to_end():
     dup_resp = client.post("/api/v1/profiles", headers=headers, json={"display_name": "Second Attempt"})
     assert dup_resp.status_code == 409
 
-    get_resp = client.get(f"/api/v1/profiles/{created['id']}")
+    get_resp = client.get(f"/api/v1/profiles/{created['id']}", headers=headers)
     assert get_resp.status_code == 200
     assert get_resp.json()["display_name"] == "Test User"
 
@@ -157,8 +157,8 @@ def test_connection_request_end_to_end():
     # Accepting triggers a best-effort ProfileMatchStats recompute for both
     # sides (routes.py) — the count should already reflect it, not require a
     # second unrelated write to become correct.
-    a_stats = client.get(f"/api/v1/profiles/{a_profile['id']}/stats")
-    b_stats = client.get(f"/api/v1/profiles/{b_profile['id']}/stats")
+    a_stats = client.get(f"/api/v1/profiles/{a_profile['id']}/stats", headers=a_headers)
+    b_stats = client.get(f"/api/v1/profiles/{b_profile['id']}/stats", headers=b_headers)
     assert a_stats.status_code == 200 and b_stats.status_code == 200
     assert a_stats.json()["total_connections"] == 1
     assert b_stats.json()["total_connections"] == 1
@@ -289,7 +289,7 @@ def test_profile_roles_endpoint_reflects_role_grants_table():
     with session_scope() as db:
         db.add(RoleGrant(discord_id=discord_id, role_key="vetted", source="onboarding"))
 
-    resp = client.get(f"/api/v1/profiles/{profile['id']}/roles")
+    resp = client.get(f"/api/v1/profiles/{profile['id']}/roles", headers=headers)
     assert resp.status_code == 200
     roles = resp.json()
     assert len(roles) == 1
@@ -431,3 +431,71 @@ def test_search_query_length_capped():
     # max_length=200 on the q param -> 422 for oversized input
     resp = client.get("/api/v1/profiles", params={"q": "a" * 500})
     assert resp.status_code == 422
+# ─────────────────── security fixes: authz + PII on profile reads ───────────────────
+
+
+def test_profile_reads_require_authentication():
+    """GET on other-user profile data must not be reachable anonymously —
+    previously these leaked every user's discord_id to unauthenticated callers."""
+    headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    pid = client.post("/api/v1/profiles", headers=headers, json={"display_name": "Private"}).json()["id"]
+    for path in (
+        f"/api/v1/profiles/{pid}",
+        f"/api/v1/profiles/{pid}/stats",
+        f"/api/v1/profiles/{pid}/roles",
+        "/api/v1/profiles",
+    ):
+        assert client.get(path).status_code == 401, path
+
+
+def test_other_users_profile_omits_discord_id():
+    """A user viewing someone else's profile (or the search list) gets the
+    public view with no discord_id; viewing your OWN profile still returns it."""
+    a_id = str(uuid.uuid4().int)[:18]
+    a_headers = _auth_headers(a_id)
+    a = client.post("/api/v1/profiles", headers=a_headers, json={"display_name": "Alpha"}).json()
+    b_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+
+    other_view = client.get(f"/api/v1/profiles/{a['id']}", headers=b_headers)
+    assert other_view.status_code == 200
+    assert "discord_id" not in other_view.json()
+    assert other_view.json()["display_name"] == "Alpha"
+
+    own_view = client.get(f"/api/v1/profiles/{a['id']}", headers=a_headers)
+    assert own_view.json().get("discord_id") == a_id
+
+    listing = client.get("/api/v1/profiles", headers=b_headers)
+    assert listing.status_code == 200
+    assert all("discord_id" not in p for p in listing.json())
+
+
+def test_profile_roles_restricted_to_self_or_admin():
+    a_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    a = client.post("/api/v1/profiles", headers=a_headers, json={"display_name": "RoleOwner"}).json()
+    b_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    assert client.get(f"/api/v1/profiles/{a['id']}/roles", headers=b_headers).status_code == 403
+
+
+def test_admin_delete_requires_admin_privilege():
+    """DELETE /admin/users/{id} must reject non-admins (403) and only work for
+    a caller whose discord_id is in ADMIN_DISCORD_IDS."""
+    from src.core.config import get_settings
+
+    victim_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    victim = client.post("/api/v1/profiles", headers=victim_headers, json={"display_name": "Victim"}).json()
+
+    # An ordinary authenticated user is not an admin.
+    normal_headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    assert client.delete(f"/api/v1/admin/users/{victim['id']}", headers=normal_headers).status_code == 403
+
+    # Grant admin to a caller (mutate the cached settings list) and it succeeds.
+    admin_id = str(uuid.uuid4().int)[:18]
+    admin_headers = _auth_headers(admin_id)
+    settings = get_settings()
+    settings.admin_discord_ids.append(admin_id)
+    try:
+        ok = client.delete(f"/api/v1/admin/users/{victim['id']}", headers=admin_headers)
+        assert ok.status_code == 200, ok.text
+        assert ok.json()["status"] == "completed"
+    finally:
+        settings.admin_discord_ids.remove(admin_id)

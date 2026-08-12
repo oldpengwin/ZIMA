@@ -17,3 +17,9 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
+
+# core.config now fails closed if ENVIRONMENT is unset (see src/core/config.py).
+# Default the test run to a non-production environment when .env didn't set one,
+# so the suite keeps working (dev-token available, rate limiting off) without a
+# silent insecure default living in the app itself.
+os.environ.setdefault("ENVIRONMENT", "test")

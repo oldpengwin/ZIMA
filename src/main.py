@@ -18,20 +18,39 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+from slowapi import Limiter, _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
+from slowapi.util import get_remote_address  # noqa: E402
 
 from src.api.routes import router as api_router  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
 
 settings = get_settings()
 
+# Global per-IP rate limit, values from config. Enforced in production only, so
+# local runs and the test suite (which fire many requests from one client IP)
+# aren't throttled. Flip ENVIRONMENT=production to exercise it.
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[f"{settings.rate_limit_requests} per {settings.rate_limit_window_minutes} minutes"],
+    enabled=settings.is_production,
+)
+
+# Swagger/OpenAPI are exposed only outside production — no need to publish the
+# full API surface (and its schema) on a live deployment.
 app = FastAPI(
     title="ZIMA Platform API",
     description="RESTful API for the ZIMA community platform with neurotype-based matching",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url=None if settings.is_production else "/api/docs",
+    redoc_url=None if settings.is_production else "/api/redoc",
+    openapi_url=None if settings.is_production else "/api/openapi.json",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

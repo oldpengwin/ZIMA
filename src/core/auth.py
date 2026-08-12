@@ -82,6 +82,20 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> TokenData
     return decode_access_token(token)
 
 
+def require_admin(current_user: TokenData = Depends(get_current_user)) -> TokenData:
+    """Authorization gate for admin-only endpoints. A caller is an admin iff
+    their Discord id is listed in ADMIN_DISCORD_IDS (see core/config.py). An
+    empty list means nobody is an admin — fail-closed — so a missing config
+    denies everyone rather than leaving admin actions open to any logged-in user."""
+    settings = get_settings()
+    if current_user.discord_id not in settings.admin_discord_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
+
+
 def discord_authorize_url(state: str) -> str:
     settings = get_settings()
     if not settings.discord_oauth_configured:

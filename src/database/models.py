@@ -158,6 +158,15 @@ class Profile(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
+    def to_public_dict(self) -> dict:
+        """Public-safe serialization for OTHER users' profiles: everything in
+        to_dict() EXCEPT discord_id, which is a permanent account identifier
+        that must not be enumerable by other users. Used by the non-owner
+        profile reads in api/routes.py (get_profile, search_profiles)."""
+        data = self.to_dict()
+        data.pop("discord_id", None)
+        return data
+
 
 class Connection(Base):
     """A connection request between two profiles (renamed from

@@ -11,6 +11,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
@@ -67,9 +68,25 @@ def _sanitize_array(value) -> list:
     return out
 
 
+def _sanitize_links(value) -> list:
+    """Keep only http(s) URLs — drops javascript:/data:/malformed so a stored
+    link can never become an XSS href when rendered on the frontend."""
+    out = []
+    for link in _sanitize_array(value):
+        try:
+            scheme = urlparse(link).scheme.lower()
+        except (ValueError, TypeError):
+            continue
+        if scheme in ("http", "https"):
+            out.append(link)
+    return out
+
+
 def _sanitize_field(field: str, value):
     """Cap/normalize a single field value by name. Arrays are trimmed and
-    length-capped; long free-text is truncated. Other fields pass through."""
+    length-capped; long free-text is truncated; links are protocol-filtered."""
+    if field == "links":
+        return _sanitize_links(value)
     if field in _ARRAY_FIELDS:
         return _sanitize_array(value)
     if field in _TEXT_FIELDS and isinstance(value, str):

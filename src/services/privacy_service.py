@@ -55,6 +55,7 @@ from src.database.models import (
     DeletionRequest,
     MatchScoreCache,
     Message,
+    Organization,
     Profile,
     ProfileMatchStats,
     Project,
@@ -143,6 +144,7 @@ def preview_deletion(db: Session, profile_id: str) -> Dict[str, int]:
         .count(),
         "project_participations": db.query(ProjectParticipant).filter(ProjectParticipant.profile_id == pid).count(),
         "owned_projects_to_orphan": db.query(Project).filter(Project.owner_id == pid).count(),
+        "owned_organizations_to_orphan": db.query(Organization).filter(Organization.owner_id == pid).count(),
         "messages_to_anonymize": db.query(Message)
         .filter((Message.from_user_id == pid) | (Message.to_user_id == pid))
         .count(),
@@ -232,6 +234,13 @@ def delete_user(db: Session, profile_id: str, requested_by: str = "self") -> Dic
             .update({"owner_id": None, "owner_deleted": True}, synchronize_session=False)
         )
         _log("projects", "nullified", n)
+
+        n = (
+            db.query(Organization)
+            .filter(Organization.owner_id == pid)
+            .update({"owner_id": None, "owner_deleted": True}, synchronize_session=False)
+        )
+        _log("organizations", "nullified", n)
 
         n = (
             db.query(Resource)

@@ -60,6 +60,7 @@ from src.database.models import (
     Project,
     ProjectParticipant,
     QuestCompletion,
+    QuizResponse,
     Resource,
     RoleGrant,
 )
@@ -96,6 +97,7 @@ def export_user_data(db: Session, profile_id: str) -> Dict[str, Any]:
     role_grants = db.query(RoleGrant).filter(RoleGrant.discord_id == profile.discord_id).all()
     quest_completions = db.query(QuestCompletion).filter(QuestCompletion.discord_id == profile.discord_id).all()
     consent_records = db.query(ConsentRecord).filter(ConsentRecord.profile_id == profile.id).all()
+    quiz_responses = db.query(QuizResponse).filter(QuizResponse.profile_id == profile.id).all()
     cached_match_scores = (
         db.query(MatchScoreCache)
         .filter(
@@ -116,6 +118,7 @@ def export_user_data(db: Session, profile_id: str) -> Dict[str, Any]:
         "resources_submitted": [r.to_dict() for r in resources_submitted],
         "role_grants": [r.to_dict() for r in role_grants],
         "quest_completions_count": len(quest_completions),
+        "quiz_responses": [q.to_dict() for q in quiz_responses],
         "consent_records": [c.to_dict() for c in consent_records],
         # Derived/profiling data computed FROM this profile's own fields —
         # current cached compatibility scores only; superseded history rows
@@ -146,6 +149,7 @@ def preview_deletion(db: Session, profile_id: str) -> Dict[str, int]:
         "resources_to_orphan": db.query(Resource).filter(Resource.submitted_by == pid).count(),
         "role_grants": db.query(RoleGrant).filter(RoleGrant.discord_id == profile.discord_id).count(),
         "quest_completions": db.query(QuestCompletion).filter(QuestCompletion.discord_id == profile.discord_id).count(),
+        "quiz_responses": db.query(QuizResponse).filter(QuizResponse.profile_id == pid).count(),
         "consent_records_to_anonymize": db.query(ConsentRecord).filter(ConsentRecord.profile_id == pid).count(),
         "cached_match_scores_to_delete": db.query(MatchScoreCache)
         .filter(or_(MatchScoreCache.profile_lo_id == pid, MatchScoreCache.profile_hi_id == pid))
@@ -196,6 +200,9 @@ def delete_user(db: Session, profile_id: str, requested_by: str = "self") -> Dic
 
         n = db.query(RoleGrant).filter(RoleGrant.discord_id == discord_id).delete(synchronize_session=False)
         _log("role_grants", "hard_delete", n)
+
+        n = db.query(QuizResponse).filter(QuizResponse.profile_id == pid).delete(synchronize_session=False)
+        _log("quiz_responses", "hard_delete", n)
 
         n = db.query(QuestCompletion).filter(QuestCompletion.discord_id == discord_id).delete(synchronize_session=False)
         _log("quest_completions", "hard_delete", n)

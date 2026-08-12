@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zima — Live Archetype Network</title>
+<!--
+  Live network view. Reads the PUBLIC, cached API:
+     GET /api/v1/neurotypes  (archetype registry: labels/emoji/colours/edges)
+     GET /api/v1/network     (per-type counts, edges, public-safe location points)
+  No external dependencies (works behind a strict CSP / offline-first). No PII:
+  the API never sends discord_id to these endpoints.
+
+  Point it at your API with ?api=  e.g.
+     zima-network-live.html?api=https://api.zima.example
+  Defaults to same-origin (empty base -> relative /api/v1/...).
+-->
+<style>
+  :root {
+    --bg: #0c1410; --panel: #12201a; --line: #21362b; --text: #dfeee6;
+    --muted: #86a596; --accent: #4fb477;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: 0.02em; }
+  header .meta { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+  header button { margin-left: auto; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+  header button:hover { border-color: var(--accent); }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; overflow: hidden; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .status { padding: 10px 20px; color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+  .status.error { color: #e88; }
+  .node-label { font: 600 11px ui-sans-serif, system-ui; }
+  .count-label { font: 700 12px ui-monospace, monospace; }
+  .pin-note { color: var(--muted); font-size: 11px; margin-top: 8px; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zima — Live Archetype Network</h1>
+  <span class="meta" id="meta">loading…</span>
+  <button id="refresh" type="button">Refresh</button>
+</header>
+<div class="status" id="status">Connecting to the network…</div>
+<main>
+  <section class="card">
+    <h2>Archetype graph</h2>
+    <svg id="graph" viewBox="0 0 520 520" role="img" aria-label="Archetype network graph"></svg>
+    <div class="legend" id="legend"></div>
+  </section>
+  <section class="card">
+    <h2>Where builders are</h2>
+    <svg id="map" viewBox="0 0 520 300" role="img" aria-label="Builder location map"></svg>
+    <div class="pin-note" id="pinnote"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const API_BASE = new URLSearchParams(location.search).get("api") || "";
+const SVGNS = "http://www.w3.org/2000/svg";
+const AUTO_REFRESH_MS = 300000; // 5 min — matches the server-side cache TTL; we don't churn.
+
+// Small offline city -> [lat, lon] table. Free-text locations are matched
+// leniently (exact, then first token). Unmatched cities are counted, not shown.
+const CITY_COORDS = {
+  "london": [51.5, -0.12], "new york": [40.71, -74.0], "nyc": [40.71, -74.0],
+  "san francisco": [37.77, -122.42], "sf": [37.77, -122.42], "los angeles": [34.05, -118.24],
+  "toronto": [43.65, -79.38], "vancouver": [49.28, -123.12], "montreal": [45.5, -73.57],
+  "chicago": [41.88, -87.63], "austin": [30.27, -97.74], "seattle": [47.61, -122.33],
+  "boston": [42.36, -71.06], "miami": [25.76, -80.19], "berlin": [52.52, 13.4],
+  "paris": [48.86, 2.35], "amsterdam": [52.37, 4.9], "lisbon": [38.72, -9.14],
+  "madrid": [40.42, -3.7], "barcelona": [41.39, 2.17], "dublin": [53.35, -6.26],
+  "lagos": [6.52, 3.38], "nairobi": [-1.29, 36.82], "accra": [5.6, -0.19],
+  "cape town": [-33.92, 18.42], "johannesburg": [-26.2, 28.05], "cairo": [30.04, 31.24],
+  "mumbai": [19.08, 72.88], "bangalore": [12.97, 77.59], "bengaluru": [12.97, 77.59],
+  "delhi": [28.61, 77.21], "singapore": [1.35, 103.82], "tokyo": [35.68, 139.69],
+  "seoul": [37.57, 126.98], "sydney": [-33.87, 151.21], "melbourne": [-37.81, 144.96],
+  "auckland": [-36.85, 174.76], "mexico city": [19.43, -99.13], "sao paulo": [-23.55, -46.63],
+  "buenos aires": [-34.6, -58.38], "bogota": [4.71, -74.07], "dubai": [25.2, 55.27],
+  "tel aviv": [32.08, 34.78], "istanbul": [41.01, 28.98], "warsaw": [52.23, 21.01],
+  "stockholm": [59.33, 18.06], "copenhagen": [55.68, 12.57], "manila": [14.6, 120.98]
+};
+
+function geocode(location) {
+  if (!location) return null;
+  const key = String(location).trim().toLowerCase();
+  if (CITY_COORDS[key]) return CITY_COORDS[key];
+  const token = key.split(/[,/]/)[0].trim();
+  return CITY_COORDS[token] || null;
+}
+
+function el(name, attrs) {
+  const node = document.createElementNS(SVGNS, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  return node;
+}
+
+async function fetchJson(path) {
+  const res = await fetch(`${API_BASE}/api/v1${path}`, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderGraph(registry, network) {
+  const svg = document.getElementById("graph");
+  svg.innerHTML = "";
+  const cx = 260, cy = 260, R = 190;
+  const order = registry.order || Object.keys(registry.neurotypes);
+  const pos = {};
+  order.forEach((id, i) => {
+    const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
+    pos[id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+  });
+  // edges
+  (network.edges || []).forEach((e) => {
+    if (!pos[e.source] || !pos[e.target]) return;
+    svg.appendChild(el("line", {
+      x1: pos[e.source].x, y1: pos[e.source].y, x2: pos[e.target].x, y2: pos[e.target].y,
+      stroke: "#2c4a3a", "stroke-width": 1.5,
+    }));
+  });
+  const counts = {};
+  (network.nodes || []).forEach((n) => (counts[n.id] = n.count));
+  const maxCount = Math.max(1, ...Object.values(counts));
+  // nodes
+  order.forEach((id) => {
+    const meta = registry.neurotypes[id];
+    if (!meta || !pos[id]) return;
+    const c = counts[id] || 0;
+    const r = 14 + 22 * Math.sqrt(c / maxCount);
+    const g = el("g", {});
+    g.appendChild(el("circle", {
+      cx: pos[id].x, cy: pos[id].y, r,
+      fill: meta.color.base, stroke: meta.color.border, "stroke-width": 2, "fill-opacity": 0.9,
+    }));
+    const emoji = el("text", { x: pos[id].x, y: pos[id].y + 5, "text-anchor": "middle" });
+    emoji.setAttribute("font-size", "16");
+    emoji.textContent = meta.emoji || "";
+    g.appendChild(emoji);
+    const lbl = el("text", {
+      x: pos[id].x, y: pos[id].y + r + 13, "text-anchor": "middle", fill: "#dfeee6", class: "node-label",
+    });
+    lbl.textContent = `${meta.label} · ${c}`;
+    g.appendChild(lbl);
+    const title = el("title", {});
+    title.textContent = `${meta.label} — ${meta.tagline || ""} (${c} builders)`;
+    g.appendChild(title);
+    svg.appendChild(g);
+  });
+  // legend
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "";
+  order.forEach((id) => {
+    const meta = registry.neurotypes[id];
+    if (!meta) return;
+    const s = document.createElement("span");
+    s.innerHTML = `<span class="dot" style="background:${meta.color.base}"></span>${meta.emoji || ""} ${meta.label}`;
+    legend.appendChild(s);
+  });
+}
+
+function renderMap(registry, network) {
+  const svg = document.getElementById("map");
+  svg.innerHTML = "";
+  const W = 520, H = 300;
+  svg.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: "#0e1b15", rx: 8 }));
+  // graticule
+  for (let lon = -180; lon <= 180; lon += 30) {
+    const x = ((lon + 180) / 360) * W;
+    svg.appendChild(el("line", { x1: x, y1: 0, x2: x, y2: H, stroke: "#17281f", "stroke-width": 1 }));
+  }
+  for (let lat = -90; lat <= 90; lat += 30) {
+    const y = ((90 - lat) / 180) * H;
+    svg.appendChild(el("line", { x1: 0, y1: y, x2: W, y2: y, stroke: "#17281f", "stroke-width": 1 }));
+  }
+  let mapped = 0, unmapped = 0;
+  (network.location_points || []).forEach((p) => {
+    const coords = geocode(p.location);
+    if (!coords) { unmapped += 1; return; }
+    mapped += 1;
+    const [lat, lon] = coords;
+    const x = ((lon + 180) / 360) * W;
+    const y = ((90 - lat) / 180) * H;
+    const meta = registry.neurotypes[p.neurotype] || { color: { base: "#4fb477", border: "#2e8451" } };
+    const pin = el("circle", {
+      cx: x, cy: y, r: 4, fill: meta.color.base, stroke: meta.color.border, "stroke-width": 1, "fill-opacity": 0.85,
+    });
+    const title = el("title", {});
+    title.textContent = `${p.display_name} · ${meta.label || p.neurotype} · ${p.location}`;
+    pin.appendChild(title);
+    svg.appendChild(pin);
+  });
+  const total = (network.location_points || []).length;
+  document.getElementById("pinnote").textContent =
+    total === 0 ? "No builders on the map yet — take the quiz to be the first pin."
+                : `${mapped} of ${total} located${unmapped ? ` · ${unmapped} city unrecognized (offline lookup)` : ""}.`;
+}
+
+async function load() {
+  const status = document.getElementById("status");
+  status.className = "status";
+  status.textContent = "Loading network…";
+  try {
+    const [registry, network] = await Promise.all([fetchJson("/neurotypes"), fetchJson("/network")]);
+    renderGraph(registry, network);
+    renderMap(registry, network);
+    document.getElementById("meta").textContent =
+      `${network.total_builders} builders · updated ${new Date(network.generated_at).toLocaleTimeString()}`;
+    status.textContent = `Live. Cached ~${Math.round((network.cache_ttl_seconds || 300) / 60)} min server-side.`;
+  } catch (err) {
+    status.className = "status error";
+    status.textContent = `Could not reach the API (${err.message}). Pass ?api=<your-api-base-url> in the URL.`;
+  }
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+load();
+setInterval(load, AUTO_REFRESH_MS);
+</script>
+</body>
+</html>

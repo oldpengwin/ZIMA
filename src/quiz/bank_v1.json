@@ -1,0 +1,207 @@
+{
+  "version": "v1",
+  "title": "The Zima Typology",
+  "description": "Oblique preference questions. No answer maps obviously to a type; each option nudges a weighted vector across the 10 archetypes. Swap this file (bank_v2.json ...) to retune without touching the engine.",
+  "questions": [
+    {
+      "id": "q01",
+      "prompt": "Free afternoon, no plans. Where do you actually drift to?",
+      "options": [
+        {"id": "a", "label": "The beach — sun, noise, other people", "weights": {"loomkeeper": 3, "chronicler": 1, "artisan": 1}},
+        {"id": "b", "label": "The woods — quiet, bugs, solitude", "weights": {"mycelian": 3, "cultivar": 2}},
+        {"id": "c", "label": "A workshop or garage with something half-built in it", "weights": {"fabricant": 3, "developer": 1}},
+        {"id": "d", "label": "A rooftop looking at the whole city at once", "weights": {"terraformer": 2, "verdant": 2, "seedcaster": 1}}
+      ]
+    },
+    {
+      "id": "q02",
+      "prompt": "Something in your house breaks. First honest instinct?",
+      "options": [
+        {"id": "a", "label": "Take it apart and fix it myself", "weights": {"fabricant": 3, "developer": 1}},
+        {"id": "b", "label": "Redesign the whole setup so it can't break like that again", "weights": {"terraformer": 3, "verdant": 1}},
+        {"id": "c", "label": "Look up why it broke and file that away", "weights": {"mycelian": 2, "chronicler": 2}},
+        {"id": "d", "label": "Ask around — someone I know has dealt with this", "weights": {"loomkeeper": 3}}
+      ]
+    },
+    {
+      "id": "q03",
+      "prompt": "Pick a texture you'd want to run your hand over.",
+      "options": [
+        {"id": "a", "label": "Rough-cut wood grain", "weights": {"fabricant": 2, "cultivar": 2}},
+        {"id": "b", "label": "Cool smooth glass", "weights": {"developer": 2, "terraformer": 1, "artisan": 1}},
+        {"id": "c", "label": "Soft moss", "weights": {"mycelian": 2, "cultivar": 2}},
+        {"id": "d", "label": "Handmade paper with a deckled edge", "weights": {"chronicler": 2, "artisan": 2}}
+      ]
+    },
+    {
+      "id": "q04",
+      "prompt": "You walk into a room full of strangers. What do you clock first?",
+      "options": [
+        {"id": "a", "label": "Who's connected to who — the social wiring", "weights": {"loomkeeper": 3, "mycelian": 1}},
+        {"id": "b", "label": "The lighting, the layout, how it's put together", "weights": {"artisan": 2, "terraformer": 2}},
+        {"id": "c", "label": "The one interesting object nobody's noticed", "weights": {"seedcaster": 2, "fabricant": 1}},
+        {"id": "d", "label": "The exits and how I'd change the flow of the room", "weights": {"verdant": 2, "terraformer": 1}}
+      ]
+    },
+    {
+      "id": "q05",
+      "prompt": "A perfect day ends with…",
+      "options": [
+        {"id": "a", "label": "Something I made that didn't exist this morning", "weights": {"fabricant": 2, "seedcaster": 2}},
+        {"id": "b", "label": "A long conversation that changed how I see things", "weights": {"loomkeeper": 2, "chronicler": 1, "verdant": 1}},
+        {"id": "c", "label": "A finished, beautiful thing I'm proud to show", "weights": {"artisan": 3}},
+        {"id": "d", "label": "Quiet, and a system that's finally running clean", "weights": {"developer": 2, "mycelian": 2}}
+      ]
+    },
+    {
+      "id": "q06",
+      "prompt": "Your relationship with rules is best described as…",
+      "options": [
+        {"id": "a", "label": "Rules are scaffolding — useful until they're not", "weights": {"verdant": 3, "seedcaster": 1}},
+        {"id": "b", "label": "I like clear rules; they let me build fast", "weights": {"developer": 2, "fabricant": 1}},
+        {"id": "c", "label": "I bend them quietly and let results speak", "weights": {"mycelian": 2, "artisan": 1}},
+        {"id": "d", "label": "I'd rather write better ones for everyone", "weights": {"verdant": 2, "loomkeeper": 1, "terraformer": 1}}
+      ]
+    },
+    {
+      "id": "q07",
+      "prompt": "Which of these could you lose an entire weekend to?",
+      "options": [
+        {"id": "a", "label": "A garden, a fermentation jar, a slow living thing", "weights": {"cultivar": 3}},
+        {"id": "b", "label": "A codebase or a mechanism that's *almost* elegant", "weights": {"developer": 3}},
+        {"id": "c", "label": "A story, a zine, an edit that has to land right", "weights": {"chronicler": 3, "artisan": 1}},
+        {"id": "d", "label": "A map of how a whole scene fits together", "weights": {"mycelian": 2, "seedcaster": 1, "loomkeeper": 1}}
+      ]
+    },
+    {
+      "id": "q08",
+      "prompt": "Sudden windfall, no strings. What happens?",
+      "options": [
+        {"id": "a", "label": "Fund three people's ideas that deserve a shot", "weights": {"seedcaster": 2, "verdant": 1, "loomkeeper": 1}},
+        {"id": "b", "label": "Buy the tools I've been eyeing for years", "weights": {"fabricant": 3}},
+        {"id": "c", "label": "Buy land and grow something on it", "weights": {"cultivar": 2, "terraformer": 2}},
+        {"id": "d", "label": "Take time to make one genuinely beautiful thing", "weights": {"artisan": 3}}
+      ]
+    },
+    {
+      "id": "q09",
+      "prompt": "Pick a weather you feel most yourself in.",
+      "options": [
+        {"id": "a", "label": "Bright, dry, high-energy heat", "weights": {"loomkeeper": 2, "chronicler": 1, "seedcaster": 1}},
+        {"id": "b", "label": "Grey, still, drizzle — thinking weather", "weights": {"mycelian": 2, "developer": 2}},
+        {"id": "c", "label": "The green hush right after rain", "weights": {"cultivar": 2, "artisan": 1}},
+        {"id": "d", "label": "A storm rolling in — something's about to change", "weights": {"verdant": 3}}
+      ]
+    },
+    {
+      "id": "q10",
+      "prompt": "In a group project you naturally become the person who…",
+      "options": [
+        {"id": "a", "label": "Actually builds the thing", "weights": {"fabricant": 2, "developer": 2}},
+        {"id": "b", "label": "Keeps everyone talking and unblocked", "weights": {"loomkeeper": 3}},
+        {"id": "c", "label": "Makes sure it looks and reads right", "weights": {"artisan": 2, "chronicler": 2}},
+        {"id": "d", "label": "Sees three steps ahead and re-frames the goal", "weights": {"seedcaster": 2, "verdant": 2}}
+      ]
+    },
+    {
+      "id": "q11",
+      "prompt": "Which small creature do you have a soft spot for?",
+      "options": [
+        {"id": "a", "label": "Bees — tiny, tireless, load-bearing", "weights": {"loomkeeper": 2, "cultivar": 2}},
+        {"id": "b", "label": "Mycelium / fungi — invisible networks", "weights": {"mycelian": 3}},
+        {"id": "c", "label": "Crows — clever tool-users", "weights": {"fabricant": 2, "developer": 1}},
+        {"id": "d", "label": "Fireflies — small signals in the dark", "weights": {"chronicler": 2, "artisan": 1, "seedcaster": 1}}
+      ]
+    },
+    {
+      "id": "q12",
+      "prompt": "What frustrates you most about the world right now?",
+      "options": [
+        {"id": "a", "label": "The systems are rigged and nobody's rewriting them", "weights": {"verdant": 3}},
+        {"id": "b", "label": "Good ideas die because nobody could build them", "weights": {"fabricant": 2, "developer": 1, "seedcaster": 1}},
+        {"id": "c", "label": "The good work happening stays invisible", "weights": {"chronicler": 3}},
+        {"id": "d", "label": "We've forgotten how to grow and repair things", "weights": {"cultivar": 2, "terraformer": 1}}
+      ]
+    },
+    {
+      "id": "q13",
+      "prompt": "Your ideal desk setup leans…",
+      "options": [
+        {"id": "a", "label": "Cables, boards, a soldering iron, half a robot", "weights": {"fabricant": 3}},
+        {"id": "b", "label": "Two monitors, dark theme, everything scripted", "weights": {"developer": 3}},
+        {"id": "c", "label": "Sketchbooks, swatches, good pens", "weights": {"artisan": 3}},
+        {"id": "d", "label": "Plants, notebooks, a window to somewhere green", "weights": {"cultivar": 2, "mycelian": 1, "seedcaster": 1}}
+      ]
+    },
+    {
+      "id": "q14",
+      "prompt": "When you learn something new, you want to…",
+      "options": [
+        {"id": "a", "label": "Use it to make something immediately", "weights": {"fabricant": 2, "developer": 1}},
+        {"id": "b", "label": "Understand the whole system it sits inside", "weights": {"mycelian": 3}},
+        {"id": "c", "label": "Teach it / write it up so others get there faster", "weights": {"chronicler": 2, "loomkeeper": 1}},
+        {"id": "d", "label": "Imagine what it makes possible that didn't exist", "weights": {"seedcaster": 3}}
+      ]
+    },
+    {
+      "id": "q15",
+      "prompt": "Pick the sound that settles you.",
+      "options": [
+        {"id": "a", "label": "A room full of overlapping conversation", "weights": {"loomkeeper": 3}},
+        {"id": "b", "label": "Rain and a mechanical keyboard", "weights": {"developer": 2, "mycelian": 1}},
+        {"id": "c", "label": "Wind through leaves", "weights": {"cultivar": 2, "terraformer": 1}},
+        {"id": "d", "label": "The scratch of a pen or a brush", "weights": {"artisan": 2, "chronicler": 1}}
+      ]
+    },
+    {
+      "id": "q16",
+      "prompt": "A blank wall is handed to you. You…",
+      "options": [
+        {"id": "a", "label": "Paint something that stops people in the street", "weights": {"artisan": 3}},
+        {"id": "b", "label": "Turn it into a working, useful surface", "weights": {"fabricant": 2, "terraformer": 2}},
+        {"id": "c", "label": "Pin up a map of who's doing what nearby", "weights": {"loomkeeper": 2, "mycelian": 2}},
+        {"id": "d", "label": "Write the manifesto that should go there", "weights": {"verdant": 2, "chronicler": 2}}
+      ]
+    },
+    {
+      "id": "q17",
+      "prompt": "Which compliment would actually land for you?",
+      "options": [
+        {"id": "a", "label": "\"Nobody else would have thought of that.\"", "weights": {"seedcaster": 3}},
+        {"id": "b", "label": "\"You actually shipped it.\"", "weights": {"fabricant": 2, "developer": 2}},
+        {"id": "c", "label": "\"This held the whole thing together.\"", "weights": {"loomkeeper": 3}},
+        {"id": "d", "label": "\"This is genuinely beautiful.\"", "weights": {"artisan": 3}}
+      ]
+    },
+    {
+      "id": "q18",
+      "prompt": "Preferred way to move through a new city?",
+      "options": [
+        {"id": "a", "label": "Wander until I understand how it's laid out", "weights": {"terraformer": 2, "mycelian": 1}},
+        {"id": "b", "label": "Find the makers, markets and workshops", "weights": {"fabricant": 2, "cultivar": 1}},
+        {"id": "c", "label": "Meet locals, get pulled into their plans", "weights": {"loomkeeper": 3}},
+        {"id": "d", "label": "Photograph and document the whole thing", "weights": {"chronicler": 3}}
+      ]
+    },
+    {
+      "id": "q19",
+      "prompt": "You're happiest when a plan is…",
+      "options": [
+        {"id": "a", "label": "Loose — room for the unexpected", "weights": {"seedcaster": 2, "artisan": 1, "loomkeeper": 1}},
+        {"id": "b", "label": "Tight and well-specified", "weights": {"developer": 3}},
+        {"id": "c", "label": "Grown, not planned — it evolves", "weights": {"cultivar": 2, "mycelian": 2}},
+        {"id": "d", "label": "Ambitious enough to scare people a little", "weights": {"verdant": 2, "seedcaster": 1, "terraformer": 1}}
+      ]
+    },
+    {
+      "id": "q20",
+      "prompt": "Last one — which of these is closest to how you'd describe your role, even off the clock?",
+      "options": [
+        {"id": "a", "label": "The one who starts things", "weights": {"seedcaster": 3}},
+        {"id": "b", "label": "The one who builds things", "weights": {"fabricant": 2, "developer": 1}},
+        {"id": "c", "label": "The one who connects things", "weights": {"loomkeeper": 2, "mycelian": 1}},
+        {"id": "d", "label": "The one who changes things", "weights": {"verdant": 3}}
+      ]
+    }
+  ]
+}

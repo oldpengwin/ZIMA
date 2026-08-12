@@ -7,6 +7,9 @@ const commands = [
     .setName('setup-onboarding')
     .setDescription('Post the Zima onboarding message in this channel (admin only)')
     .setDefaultMemberPermissions(0x8), // Administrator
+  new SlashCommandBuilder()
+    .setName('quiz')
+    .setDescription('Take the Zima typology quiz to find your archetype'),
 ].map((c) => c.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

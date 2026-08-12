@@ -1,0 +1,27 @@
+# Pre-commit hooks — run automatically on `git commit` to stop problems before
+# they enter history. Install once per clone:
+#
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run against everything on demand:  pre-commit run --all-files
+#
+# gitleaks is the same scanner the publish-mirror workflow uses on the outgoing
+# public tree — here it's the first gate, catching secrets before the commit.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: gitleaks (detect hardcoded secrets)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key       # SSH/PEM private keys
+      - id: check-added-large-files  # keep the repo lean
+        args: ["--maxkb=1024"]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict

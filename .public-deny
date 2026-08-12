@@ -16,9 +16,24 @@
 **/*.p12
 **/id_rsa*
 
-# ── Core intellectual property: the matching algorithm & its weights ──
+# ── Core intellectual property: matching + scoring algorithms & weights ──
+# How we match and score is private. The quiz QUESTIONS are public (see
+# quiz_public/), but the WEIGHTS and the archetype mapping are not.
 src/core/neurotype_matcher.py
 src/services/matching_service.py
+src/quiz/bank_v1.json
+src/quiz/engine.py
+src/services/quiz_service.py
+src/services/network_service.py
+src/core/neurotypes.py
+
+# ── User data & its handling (never public) ──
+src/database/models.py
+src/services/profile_service.py
+src/services/privacy_service.py
+src/services/connection_service.py
+src/services/stats_service.py
+supabase/schema.sql
 
 # ── Internal-only docs (honest status, roadmap, internal summaries) ──
 README.internal.md

@@ -21,3 +21,7 @@ Archetypes.md
 LICENSE
 SECURITY.md
 CONTRIBUTING.md
+
+# ── Public quiz: the typology QUESTIONS + answer labels only (no scoring
+#    weights, no archetype mapping — those stay in src/quiz/bank_v1.json). ──
+quiz_public/**

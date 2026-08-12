@@ -12,7 +12,9 @@ integration point rather than a live call, which is the right tool for
 opposed to "make something happen on Discord right now" (which needs the
 live REST call in discord_client.py)."""
 
-from typing import List
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -26,3 +28,30 @@ def get_role_grants_for_discord_id(db: Session, discord_id: str) -> List[RoleGra
         .order_by(RoleGrant.granted_at.desc())
         .all()
     )
+
+
+def record_grant(
+    db: Session,
+    discord_id: str,
+    role_key: str,
+    source: str = "system",
+    metadata: Optional[dict] = None,
+) -> RoleGrant:
+    """Upsert a role grant (unique on discord_id + role_key), mirroring what the
+    Node bot used to write to Supabase directly. Going forward the bot POSTs to
+    the API instead of holding a Supabase service key — the DB write happens
+    here, in one place, under the same connection pool as everything else."""
+    grant = (
+        db.query(RoleGrant)
+        .filter(RoleGrant.discord_id == discord_id, RoleGrant.role_key == role_key)
+        .one_or_none()
+    )
+    if grant is None:
+        grant = RoleGrant(id=uuid.uuid4(), discord_id=discord_id, role_key=role_key)
+        db.add(grant)
+    grant.source = source
+    grant.role_metadata = metadata or {}
+    grant.granted_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(grant)
+    return grant

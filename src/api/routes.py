@@ -16,11 +16,12 @@ version:
 """
 
 import logging
+import secrets
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from jose import jwt
 from sqlalchemy.orm import Session
@@ -109,23 +110,55 @@ async def _revoke_discord_access_best_effort(discord_id: Optional[str]) -> None:
 
 # ─────────────────────────────────── Auth ───────────────────────────────────
 
+_OAUTH_STATE_COOKIE = "zima_oauth_state"
+_OAUTH_STATE_PATH = "/api/v1/auth/discord"
+
 
 @router.get("/auth/discord/login")
 async def discord_login() -> RedirectResponse:
     """Starts the real Discord OAuth2 flow. Returns 503 (not a fake success)
-    if DISCORD_CLIENT_ID/SECRET aren't configured — see core/config.py."""
+    if DISCORD_CLIENT_ID/SECRET aren't configured — see core/config.py.
+
+    The `state` is bound to THIS browser: a random nonce is signed into the
+    state JWT and also set in an httpOnly cookie. The callback requires the two
+    to match, so a state minted for one visitor can't be replayed to complete a
+    login in another session (login-CSRF / auth-code fixation)."""
     settings = get_settings()
-    state = jwt.encode({"exp": time.time() + 600}, settings.secret_key, algorithm=settings.algorithm)
-    return RedirectResponse(discord_authorize_url(state))
+    nonce = secrets.token_urlsafe(24)
+    state = jwt.encode(
+        {"nonce": nonce, "exp": time.time() + 600}, settings.secret_key, algorithm=settings.algorithm
+    )
+    response = RedirectResponse(discord_authorize_url(state))
+    response.set_cookie(
+        _OAUTH_STATE_COOKIE,
+        nonce,
+        max_age=600,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",  # sent on the top-level redirect back from Discord
+        path=_OAUTH_STATE_PATH,
+    )
+    return response
 
 
 @router.get("/auth/discord/callback")
-async def discord_callback(code: str, state: str, db: Session = Depends(get_db)) -> Dict[str, str]:
+async def discord_callback(
+    code: str,
+    state: str,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> Dict[str, str]:
     settings = get_settings()
+    # Consume the state cookie regardless of outcome (single use).
+    cookie_nonce = request.cookies.get(_OAUTH_STATE_COOKIE)
+    response.delete_cookie(_OAUTH_STATE_COOKIE, path=_OAUTH_STATE_PATH)
     try:
-        jwt.decode(state, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(state, settings.secret_key, algorithms=[settings.algorithm])
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OAuth state") from e
+    if not cookie_nonce or payload.get("nonce") != cookie_nonce:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state does not match this session")
 
     discord_user = await exchange_discord_code(code)
     discord_id = discord_user["id"]
@@ -270,7 +303,7 @@ async def get_profile_roles(
 
 @router.get("/profiles", response_model=List[Dict[str, Any]])
 async def search_profiles(
-    q: Optional[str] = Query(None, min_length=2),
+    q: Optional[str] = Query(None, min_length=2, max_length=200),
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
     current_user: TokenData = Depends(get_current_user),
@@ -621,6 +654,71 @@ async def bot_set_identified(
     except quiz_service.QuizServiceError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return updated.to_dict()
+
+
+# ─────────────────────────────────── Bot service: profiles & roles ───────────────────────────────────
+
+
+@router.post("/bot/profiles/upsert", response_model=Dict[str, Any])
+async def bot_upsert_profile(
+    body: Dict[str, Any],
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: create-or-update a profile from onboarding.
+    Replaces the bot's former direct Supabase service-key write, so the bot no
+    longer needs admin DB access. Guarded by X-Bot-Key."""
+    if not body.get("discord_id"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="discord_id is required")
+    try:
+        profile, created = profile_service.upsert_by_discord_id(
+            db, body, mark_onboarded=bool(body.get("onboarding_completed"))
+        )
+    except profile_service.InvalidProfileDataError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except profile_service.DuplicateProfileError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    result = profile.to_dict()
+    result["created"] = created
+    return result
+
+
+@router.get("/bot/profiles/by-discord/{discord_id}", response_model=Dict[str, Any])
+async def bot_get_profile(
+    discord_id: str,
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: fetch a profile by discord_id (used to check
+    whether someone has already onboarded). Guarded by X-Bot-Key."""
+    profile = profile_service.get_profile_by_discord_id(db, discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile for that discord_id")
+    return profile.to_dict()
+
+
+@router.post("/bot/role-grants", response_model=Dict[str, Any])
+async def bot_record_role_grant(
+    body: Dict[str, Any],
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: record a role grant after the bot assigns a
+    Discord role. The Discord-side role add still happens in the bot; only the
+    DB record moves here. Guarded by X-Bot-Key."""
+    discord_id = body.get("discord_id")
+    role_key = body.get("role_key")
+    if not discord_id or not role_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="discord_id and role_key are required")
+    metadata = body.get("metadata")
+    grant = role_service.record_grant(
+        db,
+        str(discord_id),
+        str(role_key),
+        source=str(body.get("source", "system")),
+        metadata=metadata if isinstance(metadata, dict) else {},
+    )
+    return grant.to_dict()
 
 
 @router.put("/profiles/{profile_id}/identified-neurotype", response_model=Dict[str, Any])

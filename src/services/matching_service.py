@@ -166,9 +166,16 @@ def find_matches(db: Session, user_id: str, limit: int = 5) -> Dict:
             "can be calculated. Complete onboarding first."
         )
 
+    # Push BOTH "matchable" filters down to SQL: has an archetype, and is open
+    # to matching. Previously is_open was filtered in Python after loading every
+    # candidate row — O(N) memory on large userbases for rows we then discard.
     candidate_rows = (
         db.query(Profile)
-        .filter(Profile.neurotype.isnot(None), Profile.id != target_row.id)
+        .filter(
+            Profile.neurotype.isnot(None),
+            Profile.is_open.is_(True),
+            Profile.id != target_row.id,
+        )
         .all()
     )
     if not candidate_rows:
@@ -186,8 +193,7 @@ def find_matches(db: Session, user_id: str, limit: int = 5) -> Dict:
     hits = 0
 
     for candidate_id, candidate_row in candidates_by_id.items():
-        if not candidate_row.is_open:
-            continue  # matches find_top_matches' historical behavior: closed profiles aren't surfaced as candidates
+        # is_open is already enforced in the SQL query above.
         candidate_mp = matcher._profile_by_id.get(candidate_id)
         if candidate_mp is None:
             continue  # no/unrecognized neurotype — not matchable, see _to_match_profile

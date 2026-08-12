@@ -1,5 +1,5 @@
 import { roleKeys } from '../config.js';
-import { recordRoleGrant } from '../db/supabase.js';
+import { recordRoleGrant } from '../lib/apiClient.js';
 
 export class RoleGrantError extends Error {
   constructor(message, { userMessage } = {}) {

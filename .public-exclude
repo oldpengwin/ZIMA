@@ -99,3 +99,5 @@ src/quiz/engine.py
 src/services/network_service.py
 src/services/quiz_service.py
 tests/backend/test_quiz_engine.py
+src/lib/apiClient.js
+supabase/rls_policies.sql

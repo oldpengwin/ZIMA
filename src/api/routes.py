@@ -177,6 +177,16 @@ async def discord_callback(
         )
 
     access_token = create_access_token(discord_id=discord_id, username=username)
+    # If a frontend is configured, redirect back to it with the token in the URL
+    # FRAGMENT (after '#'), so the SPA reads it and the token never reaches a
+    # server log or referrer. Otherwise return JSON (API-only / local testing).
+    if settings.frontend_url:
+        from urllib.parse import urlencode
+
+        frag = urlencode({"access_token": access_token, "profile_id": str(profile.id)})
+        redirect = RedirectResponse(f"{settings.frontend_url.rstrip('/')}/#/auth/callback?{frag}")
+        redirect.delete_cookie(_OAUTH_STATE_COOKIE, path=_OAUTH_STATE_PATH)
+        return redirect
     return {"access_token": access_token, "token_type": "bearer", "profile_id": str(profile.id)}
 
 

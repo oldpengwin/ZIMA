@@ -126,3 +126,7 @@ src/frontend/src/pages/ProfileView.jsx
 src/frontend/src/pages/Quiz.jsx
 src/frontend/src/styles/global.css
 src/frontend/vite.config.js
+migrations/versions/a7b8c9d0e1f2_drop_unused_embedding_column.py
+src/api/schemas.py
+src/frontend/src/lib/url.js
+src/services/organization_service.py

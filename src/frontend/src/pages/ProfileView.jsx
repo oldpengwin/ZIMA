@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth.jsx';
 import SectionFlag from '../components/SectionFlag.jsx';
 import NeurotypeBadge from '../components/NeurotypeBadge.jsx';
 import { PageLoader } from '../components/Loader.jsx';
+import { safeLinks } from '../lib/url.js';
 
 export default function ProfileView() {
   const { id } = useParams();
@@ -62,9 +63,9 @@ export default function ProfileView() {
           {p.skills.map((s) => <span key={s} className="tag">{s}</span>)}
         </div>
       )}
-      {p.links?.length > 0 && (
+      {safeLinks(p.links).length > 0 && (
         <div className="stack" style={{ gap: 4, marginBottom: 8 }}>
-          {p.links.map((l) => (
+          {safeLinks(p.links).map((l) => (
             <a key={l} href={l} target="_blank" rel="noreferrer" style={{ color: 'var(--cyan)', wordBreak: 'break-all' }}>{l}</a>
           ))}
         </div>

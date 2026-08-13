@@ -136,3 +136,5 @@ docs/DEPLOYMENT.md
 src/services/xp_service.py
 migrations/versions/b2c3d4e5f6a7_xp_events_ledger.py
 tests/backend/test_xp_service.py
+src/features/social/commands.js
+tests/backend/test_bot_social.py

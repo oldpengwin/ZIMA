@@ -13,6 +13,21 @@ const commands = [
   new SlashCommandBuilder()
     .setName('xp')
     .setDescription('See your Zima XP, level, and unlocked role tiers'),
+  new SlashCommandBuilder()
+    .setName('profile')
+    .setDescription('View your ZIMA builder profile, or someone else’s')
+    .addUserOption((o) => o.setName('user').setDescription('Whose profile to view (defaults to you)')),
+  new SlashCommandBuilder()
+    .setName('matches')
+    .setDescription('See your top archetype matches on ZIMA'),
+  new SlashCommandBuilder()
+    .setName('projects')
+    .setDescription('Browse open projects on ZIMA'),
+  new SlashCommandBuilder()
+    .setName('connect')
+    .setDescription('Send a connection request to another builder')
+    .addUserOption((o) => o.setName('user').setDescription('The builder to connect with').setRequired(true))
+    .addStringOption((o) => o.setName('message').setDescription('Optional note to include')),
 ].map((c) => c.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

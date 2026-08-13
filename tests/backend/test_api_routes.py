@@ -81,7 +81,9 @@ def test_create_and_fetch_profile_end_to_end():
     assert create_resp.status_code == 201, create_resp.text
     created = create_resp.json()
     assert created["display_name"] == "Test User"
-    assert created["neurotype"] == "developer"
+    # neurotype is NOT honored at signup — it's the matching archetype, earned
+    # via the quiz, never self-set on the create payload (see create_profile route).
+    assert created.get("neurotype") in (None, "")
     assert created["discord_id"] == discord_id  # server-set from the token, not client input
 
     # Duplicate creation for the same account is rejected, not silently overwritten.
@@ -113,9 +115,13 @@ def test_update_profile_requires_ownership():
     assert ok.status_code == 200
     assert ok.json()["bio"] == "real bio"
 
-    # An invalid neurotype is rejected with a 400, not a silent write or a 500.
-    bad = client.put(f"/api/v1/profiles/{profile_id}", headers=owner_headers, json={"neurotype": "not-a-real-archetype"})
-    assert bad.status_code == 400
+    # neurotype is NOT settable via a profile PUT: it's the matching-relevant
+    # archetype and must come from the quiz (assessed) or the self-identify
+    # endpoint, never a raw update — otherwise a user could self-assign any
+    # archetype and game matching. The field is silently ignored, not written.
+    ignored = client.put(f"/api/v1/profiles/{profile_id}", headers=owner_headers, json={"neurotype": "developer"})
+    assert ignored.status_code == 200
+    assert ignored.json().get("neurotype") in (None, "")
 
 
 def test_connection_request_end_to_end():

@@ -3,6 +3,12 @@ import { handleProfileModal, handleStartButton } from '../features/onboarding/fl
 import { QUIZ_IDS } from '../features/quiz/constants.js';
 import { handleAnswer, handleIdentify, startQuiz } from '../features/quiz/flow.js';
 import { getXp } from '../lib/apiClient.js';
+import {
+  handleConnect,
+  handleMatches,
+  handleProfile,
+  handleProjects,
+} from '../features/social/commands.js';
 
 // ── XP command ── read-only view of the caller's own XP standing. XP is only
 // ever awarded server-side off real actions (see services/xp_service.py); this
@@ -42,6 +48,18 @@ export async function onInteractionCreate(interaction) {
   }
   if (interaction.isChatInputCommand() && interaction.commandName === 'xp') {
     return handleXp(interaction);
+  }
+  if (interaction.isChatInputCommand() && interaction.commandName === 'profile') {
+    return handleProfile(interaction);
+  }
+  if (interaction.isChatInputCommand() && interaction.commandName === 'matches') {
+    return handleMatches(interaction);
+  }
+  if (interaction.isChatInputCommand() && interaction.commandName === 'projects') {
+    return handleProjects(interaction);
+  }
+  if (interaction.isChatInputCommand() && interaction.commandName === 'connect') {
+    return handleConnect(interaction);
   }
   if (interaction.isButton() && interaction.customId === QUIZ_IDS.START) {
     return startQuiz(interaction);

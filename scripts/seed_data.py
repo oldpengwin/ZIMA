@@ -307,7 +307,20 @@ def main() -> None:
     parser.add_argument("--profiles", type=int, default=300, help="Number of profiles to seed (default: 300)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
     parser.add_argument("--reset", action="store_true", help="Truncate all seed-owned tables before seeding")
+    parser.add_argument("--force", action="store_true", help="Override the production safety guard (dangerous)")
     args = parser.parse_args()
+
+    # Refuse to fabricate synthetic users into a production database. This script
+    # is a dev/test seeder; running it against real signups would corrupt data.
+    from src.core.config import get_settings
+
+    if get_settings().is_production and not args.force:
+        print(
+            "REFUSING to seed: ENVIRONMENT=production. This generates synthetic users and is "
+            "dev/test only. Re-run with --force only if you are absolutely certain.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Fail loudly rather than seeding into an unmigrated database.
     from sqlalchemy import inspect

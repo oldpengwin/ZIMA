@@ -39,10 +39,12 @@ from src.core import discord_client
 from src.core import neurotypes as neurotype_registry
 from src.core.config import get_settings
 from src.db.session import get_db
+from src.api.schemas import OrganizationCreate, OrganizationUpdate, ProjectUpdate
 from src.services import (
     connection_service,
     matching_service,
     network_service,
+    organization_service,
     privacy_service,
     profile_service,
     project_service,
@@ -178,6 +180,16 @@ async def discord_callback(
         )
 
     access_token = create_access_token(discord_id=discord_id, username=username)
+    # If a frontend is configured, redirect back to it with the token in the URL
+    # FRAGMENT (after '#'), so the SPA reads it and the token never reaches a
+    # server log or referrer. Otherwise return JSON (API-only / local testing).
+    if settings.frontend_url:
+        from urllib.parse import urlencode
+
+        frag = urlencode({"access_token": access_token, "profile_id": str(profile.id)})
+        redirect = RedirectResponse(f"{settings.frontend_url.rstrip('/')}/#/auth/callback?{frag}")
+        redirect.delete_cookie(_OAUTH_STATE_COOKIE, path=_OAUTH_STATE_PATH)
+        return redirect
     return {"access_token": access_token, "token_type": "bearer", "profile_id": str(profile.id)}
 
 
@@ -478,6 +490,109 @@ async def join_project(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     _recompute_stats_best_effort(db, profile.id)
     return participant.to_dict()
+
+
+@router.put("/projects/{project_id}", response_model=Dict[str, Any])
+async def update_project(
+    project_id: str,
+    body: ProjectUpdate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or project.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only edit your own project")
+    try:
+        updated = project_service.update_project(db, project_id, body.model_dump(exclude_unset=True))
+    except project_service.ProjectServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return updated.to_dict()
+
+
+@router.delete("/projects/{project_id}", response_model=Dict[str, Any])
+async def delete_project(
+    project_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or project.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only delete your own project")
+    project_service.delete_project(db, project_id)
+    return {"deleted": True, "id": project_id}
+
+
+# ─────────────────────────────────── Organizations ───────────────────────────────────
+
+
+@router.post("/organizations", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_organization(
+    body: OrganizationCreate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
+    org = organization_service.create_organization(db, owner.id, body.model_dump())
+    return org.to_dict()
+
+
+@router.get("/organizations", response_model=List[Dict[str, Any]])
+async def list_organizations(
+    org_type: Optional[str] = Query(None, max_length=50),
+    limit: int = Query(24, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    return [o.to_dict() for o in organization_service.list_organizations(db, org_type, limit, offset)]
+
+
+@router.get("/organizations/{org_id}", response_model=Dict[str, Any])
+async def get_organization(org_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    return org.to_dict()
+
+
+@router.put("/organizations/{org_id}", response_model=Dict[str, Any])
+async def update_organization(
+    org_id: str,
+    body: OrganizationUpdate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or org.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only edit your own organization")
+    updated = organization_service.update_organization(db, org_id, body.model_dump(exclude_unset=True))
+    return updated.to_dict()
+
+
+@router.delete("/organizations/{org_id}", response_model=Dict[str, Any])
+async def delete_organization(
+    org_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or org.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only delete your own organization")
+    organization_service.delete_organization(db, org_id)
+    return {"deleted": True, "id": org_id}
 
 
 # ─────────────────────────────────── Privacy: export & deletion ───────────────────────────────────

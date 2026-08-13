@@ -60,6 +60,31 @@ def list_projects(db: Session, status: Optional[str] = None, limit: int = 20, of
     return q.order_by(Project.created_at.desc()).offset(offset).limit(limit).all()
 
 
+_UPDATABLE = {"title", "description", "neurotypes_needed", "skills_needed", "status"}
+
+
+def update_project(db: Session, project_id: str, updates: Dict[str, Any]) -> Project:
+    project = get_project(db, project_id)
+    if not project:
+        raise ProjectNotFoundError(f"Project {project_id} not found")
+    if updates.get("status") is not None and updates["status"] not in VALID_STATUSES:
+        raise ProjectServiceError(f"status must be one of {sorted(VALID_STATUSES)}")
+    for field, value in updates.items():
+        if field in _UPDATABLE and value is not None:
+            setattr(project, field, value)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+def delete_project(db: Session, project_id: str) -> None:
+    project = get_project(db, project_id)
+    if not project:
+        raise ProjectNotFoundError(f"Project {project_id} not found")
+    db.delete(project)  # project_participants cascade via FK
+    db.commit()
+
+
 def join_project(db: Session, project_id: str, profile_id: str, role: str = "contributor") -> ProjectParticipant:
     if not db.get(Project, uuid.UUID(str(project_id))):
         raise ProjectNotFoundError(f"Project {project_id} not found")

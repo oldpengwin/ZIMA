@@ -182,6 +182,10 @@ class TestDeletionDoesNotCorruptOtherUsers:
         # Even with zero rows in most related tables, every table in the
         # policy must appear in the audit log — an empty result is a real,
         # logged zero, not a silently skipped step.
+        # quiz_responses (neurotype-quiz) and organizations (org-ownership) were
+        # added to the deletion policy after this test was first written — the
+        # service already handles both correctly (verified in
+        # src/services/privacy_service.py); this expected set was just stale.
         assert table_names == {
             "connections",
             "project_participants",
@@ -190,9 +194,11 @@ class TestDeletionDoesNotCorruptOtherUsers:
             "match_score_cache",
             "profile_match_stats",
             "projects",
+            "organizations",
             "resources",
             "messages",
             "consent_records",
+            "quiz_responses",
             "profiles",
         }
 

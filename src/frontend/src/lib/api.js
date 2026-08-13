@@ -98,6 +98,16 @@ export const api = {
   createProject: (data) => request('/projects', { method: 'POST', body: data }),
   getProject: (id) => request(`/projects/${id}`),
   joinProject: (id, role = 'contributor') => request(`/projects/${id}/join`, { method: 'POST', body: { role } }),
+  updateProject: (id, updates) => request(`/projects/${id}`, { method: 'PUT', body: updates }),
+  deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+
+  // ── organizations ──
+  listOrganizations: ({ org_type, limit = 24, offset = 0 } = {}) =>
+    request('/organizations', { query: { org_type, limit, offset } }),
+  createOrganization: (data) => request('/organizations', { method: 'POST', body: data }),
+  getOrganization: (id) => request(`/organizations/${id}`),
+  updateOrganization: (id, updates) => request(`/organizations/${id}`, { method: 'PUT', body: updates }),
+  deleteOrganization: (id) => request(`/organizations/${id}`, { method: 'DELETE' }),
 
   // ── privacy ──
   exportMe: () => request('/users/me/export'),

@@ -10,6 +10,8 @@ import ProfileMe from './pages/ProfileMe.jsx';
 import ProfileView from './pages/ProfileView.jsx';
 import Matches from './pages/Matches.jsx';
 import Network from './pages/Network.jsx';
+import Projects from './pages/Projects.jsx';
+import Organizations from './pages/Organizations.jsx';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/p/:id" element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
         <Route path="/matches" element={<ProtectedRoute><Matches /></ProtectedRoute>} />
         <Route path="/network" element={<ProtectedRoute><Network /></ProtectedRoute>} />
+        <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+        <Route path="/organizations" element={<ProtectedRoute><Organizations /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

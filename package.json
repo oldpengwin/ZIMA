@@ -2,7 +2,7 @@
   "name": "zima-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Zima — Discord onboarding bot with Supabase profiles and role grants",
+  "description": "Zima — Discord onboarding bot. Writes profiles/roles/quiz data through the Python API (src/lib/apiClient.js), not a direct DB connection.",
   "type": "module",
   "main": "src/index.js",
   "engines": {
@@ -14,7 +14,6 @@
     "register-commands": "node src/register-commands.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.1",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7"
   }

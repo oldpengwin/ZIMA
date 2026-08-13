@@ -1,13 +1,16 @@
 # Discord Bot Dockerfile
 #
 # Builds the REAL bot — discord.js, repo root (src/index.js, package.json).
-# The previous version of this file built from src/bot/, which is a
-# different, dead, unwired second Discord bot (a Python discord.py cog —
-# see src/bot/cogs/matching.py) that has no package.json and no index.js at
-# all; `COPY src/bot/package*.json ./` would fail outright the moment this
-# was actually built, which is why this is being fixed now rather than
-# discovered at deploy time. See README.internal.md for the open question
-# of whether src/bot/ should be deleted outright.
+# The previous dead, unwired second Discord bot (a Python discord.py cog at
+# src/bot/cogs/matching.py, with no package.json/index.js of its own) has
+# since been deleted outright — there's only one bot now.
+#
+# 13-Aug-2026 production audit: this file previously had
+# `COPY src/db/supabase.js ./src/db/supabase.js`, which does not exist —
+# the bot no longer talks to Supabase directly (writes go through the Python
+# API via src/lib/apiClient.js, see src/config.js). That line would have
+# failed `docker build` outright the first time this was actually built, so
+# it's replaced with the real runtime dependency (src/lib/) here.
 
 FROM node:18-alpine
 
@@ -24,7 +27,7 @@ RUN npm ci --omit=dev
 COPY src/config.js ./src/config.js
 COPY src/index.js ./src/index.js
 COPY src/register-commands.js ./src/register-commands.js
-COPY src/db/supabase.js ./src/db/supabase.js
+COPY src/lib ./src/lib
 COPY src/features ./src/features
 COPY src/handlers ./src/handlers
 COPY src/roles ./src/roles

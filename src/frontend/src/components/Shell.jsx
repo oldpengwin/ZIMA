@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth.jsx';
 const LINKS = [
   { to: '/discover', label: 'Discover' },
   { to: '/network', label: 'Network' },
+  { to: '/projects', label: 'Projects' },
+  { to: '/organizations', label: 'Organizations' },
   { to: '/matches', label: 'Matches' },
   { to: '/me', label: 'Profile' },
 ];

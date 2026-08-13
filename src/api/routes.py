@@ -39,16 +39,19 @@ from src.core import discord_client
 from src.core import neurotypes as neurotype_registry
 from src.core.config import get_settings
 from src.db.session import get_db
+from src.api.schemas import OrganizationCreate, OrganizationUpdate, ProjectUpdate
 from src.services import (
     connection_service,
     matching_service,
     network_service,
+    organization_service,
     privacy_service,
     profile_service,
     project_service,
     quiz_service,
     role_service,
     stats_service,
+    xp_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,6 +109,38 @@ async def _revoke_discord_access_best_effort(discord_id: Optional[str]) -> None:
         )
     except Exception:
         logger.exception("Unexpected error revoking Discord access for discord_id=%s", discord_id)
+
+
+async def _award_xp_best_effort(
+    db: Session, discord_id: Optional[str], event_type: str, ref_id: str = ""
+) -> None:
+    """Award XP for an action that just succeeded, then apply any newly-unlocked
+    Discord tier role. Best-effort in the same spirit as the stats/notify helpers
+    above: an XP or Discord failure must never fail the request it's attached to
+    (that write already committed), but nothing is swallowed silently — every
+    failure, and every "tier unlocked but no role id configured" case, is logged.
+    See services/xp_service.py."""
+    if not discord_id:
+        return
+    try:
+        result = xp_service.award(db, discord_id, event_type, ref_id)
+    except Exception:
+        logger.exception("Best-effort XP award failed for discord_id=%s event=%s", discord_id, event_type)
+        return
+    for role_key in result.get("newly_unlocked", []):
+        role_id = get_settings().xp_tier_role_ids.get(role_key, "")
+        if not role_id:
+            logger.info(
+                "XP tier %s unlocked for discord_id=%s — grant recorded, but no Discord role id is "
+                "configured for it, so the role was not applied.", role_key, discord_id,
+            )
+            continue
+        try:
+            await discord_client.add_guild_member_role(
+                discord_id, role_id, reason=f"ZIMA XP tier unlock: {role_key}"
+            )
+        except Exception:
+            logger.exception("Unexpected error applying XP tier role %s for discord_id=%s", role_key, discord_id)
 
 
 # ─────────────────────────────────── Auth ───────────────────────────────────
@@ -178,6 +213,16 @@ async def discord_callback(
         )
 
     access_token = create_access_token(discord_id=discord_id, username=username)
+    # If a frontend is configured, redirect back to it with the token in the URL
+    # FRAGMENT (after '#'), so the SPA reads it and the token never reaches a
+    # server log or referrer. Otherwise return JSON (API-only / local testing).
+    if settings.frontend_url:
+        from urllib.parse import urlencode
+
+        frag = urlencode({"access_token": access_token, "profile_id": str(profile.id)})
+        redirect = RedirectResponse(f"{settings.frontend_url.rstrip('/')}/#/auth/callback?{frag}")
+        redirect.delete_cookie(_OAUTH_STATE_COOKIE, path=_OAUTH_STATE_PATH)
+        return redirect
     return {"access_token": access_token, "token_type": "bearer", "profile_id": str(profile.id)}
 
 
@@ -211,6 +256,7 @@ async def create_profile(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except profile_service.DuplicateProfileError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    await _award_xp_best_effort(db, profile.discord_id, "onboarding_completed")
     return profile.to_dict()
 
 
@@ -223,6 +269,17 @@ async def get_my_profile(
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     return profile.to_dict()
+
+
+@router.get("/profiles/me/xp", response_model=Dict[str, Any])
+async def get_my_xp(
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """The authenticated builder's own XP standing: total, level, progress to the
+    next level, unlocked tiers, and event history — derived live from the
+    xp_events ledger (services/xp_service.py), never a mutable stored total."""
+    return xp_service.get_summary(db, current_user.discord_id)
 
 
 @router.get("/profiles/{profile_id}", response_model=Dict[str, Any])
@@ -439,6 +496,7 @@ async def create_project(
     except project_service.ProjectServiceError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     _recompute_stats_best_effort(db, owner.id)
+    await _award_xp_best_effort(db, owner.discord_id, "project_created", ref_id=str(project.id))
     return project.to_dict()
 
 
@@ -477,7 +535,111 @@ async def join_project(
     except project_service.ProjectServiceError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     _recompute_stats_best_effort(db, profile.id)
+    await _award_xp_best_effort(db, profile.discord_id, "first_project_join")
     return participant.to_dict()
+
+
+@router.put("/projects/{project_id}", response_model=Dict[str, Any])
+async def update_project(
+    project_id: str,
+    body: ProjectUpdate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or project.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only edit your own project")
+    try:
+        updated = project_service.update_project(db, project_id, body.model_dump(exclude_unset=True))
+    except project_service.ProjectServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return updated.to_dict()
+
+
+@router.delete("/projects/{project_id}", response_model=Dict[str, Any])
+async def delete_project(
+    project_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or project.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only delete your own project")
+    project_service.delete_project(db, project_id)
+    return {"deleted": True, "id": project_id}
+
+
+# ─────────────────────────────────── Organizations ───────────────────────────────────
+
+
+@router.post("/organizations", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_organization(
+    body: OrganizationCreate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
+    org = organization_service.create_organization(db, owner.id, body.model_dump())
+    return org.to_dict()
+
+
+@router.get("/organizations", response_model=List[Dict[str, Any]])
+async def list_organizations(
+    org_type: Optional[str] = Query(None, max_length=50),
+    limit: int = Query(24, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    return [o.to_dict() for o in organization_service.list_organizations(db, org_type, limit, offset)]
+
+
+@router.get("/organizations/{org_id}", response_model=Dict[str, Any])
+async def get_organization(org_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    return org.to_dict()
+
+
+@router.put("/organizations/{org_id}", response_model=Dict[str, Any])
+async def update_organization(
+    org_id: str,
+    body: OrganizationUpdate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or org.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only edit your own organization")
+    updated = organization_service.update_organization(db, org_id, body.model_dump(exclude_unset=True))
+    return updated.to_dict()
+
+
+@router.delete("/organizations/{org_id}", response_model=Dict[str, Any])
+async def delete_organization(
+    org_id: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    org = organization_service.get_organization(db, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    owner = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
+    if not owner or org.owner_id != owner.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only delete your own organization")
+    organization_service.delete_organization(db, org_id)
+    return {"deleted": True, "id": org_id}
 
 
 # ─────────────────────────────────── Privacy: export & deletion ───────────────────────────────────
@@ -612,7 +774,9 @@ async def submit_quiz(
     profile = profile_service.get_profile_by_discord_id(db, current_user.discord_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Your profile was not found")
-    return _run_quiz_submit(db, str(profile.id), body, source="web")
+    result = _run_quiz_submit(db, str(profile.id), body, source="web")
+    await _award_xp_best_effort(db, profile.discord_id, "quiz_completed")
+    return result
 
 
 @router.post("/bot/quiz/submit", response_model=Dict[str, Any])
@@ -629,7 +793,9 @@ async def bot_submit_quiz(
     profile = profile_service.get_profile_by_discord_id(db, discord_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile for that discord_id (onboard first)")
-    return _run_quiz_submit(db, str(profile.id), body, source="discord")
+    result = _run_quiz_submit(db, str(profile.id), body, source="discord")
+    await _award_xp_best_effort(db, profile.discord_id, "quiz_completed")
+    return result
 
 
 @router.post("/bot/profiles/identified", response_model=Dict[str, Any])
@@ -719,6 +885,18 @@ async def bot_record_role_grant(
         metadata=metadata if isinstance(metadata, dict) else {},
     )
     return grant.to_dict()
+
+
+@router.get("/bot/xp/{discord_id}", response_model=Dict[str, Any])
+async def bot_get_xp(
+    discord_id: str,
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: read a builder's XP standing by discord_id, for
+    an in-Discord `/xp` command. Guarded by X-Bot-Key. Read-only — XP is only
+    ever awarded server-side off real actions, never by anything the bot posts."""
+    return xp_service.get_summary(db, discord_id)
 
 
 @router.put("/profiles/{profile_id}/identified-neurotype", response_model=Dict[str, Any])

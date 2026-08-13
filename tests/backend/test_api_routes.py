@@ -428,8 +428,13 @@ def test_bot_endpoints_require_service_key():
 
 
 def test_search_query_length_capped():
-    # max_length=200 on the q param -> 422 for oversized input
-    resp = client.get("/api/v1/profiles", params={"q": "a" * 500})
+    # max_length=200 on the q param -> 422 for oversized input. /profiles search
+    # requires auth (security-fixes: prevents anonymous scraping of the
+    # userbase), so authenticate first — an unauthenticated call now correctly
+    # 401s before query validation ever runs, which is exercised separately by
+    # test_profile_reads_require_authentication below.
+    headers = _auth_headers(str(uuid.uuid4().int)[:18])
+    resp = client.get("/api/v1/profiles", params={"q": "a" * 500}, headers=headers)
     assert resp.status_code == 422
 # ─────────────────── security fixes: authz + PII on profile reads ───────────────────
 

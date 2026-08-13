@@ -88,6 +88,38 @@ async def remove_guild_member_role(discord_user_id: str, role_id: str, *, reason
         return False
 
 
+async def add_guild_member_role(discord_user_id: str, role_id: str, *, reason: str) -> bool:
+    """Best-effort role GRANT — the symmetric partner of remove_guild_member_role,
+    used to apply an XP tier role the moment a builder crosses a level threshold
+    (see services/xp_service.py) instead of waiting for the bot to notice. Returns
+    False (and logs) on any failure; a 204 (applied) or 404 (member not in the
+    guild yet) is treated as done, not an error, exactly like the revoke path."""
+    settings = get_settings()
+    headers = _headers()
+    if headers is None or not settings.discord_server_id or not role_id:
+        if headers is not None:
+            logger.warning(
+                "add_guild_member_role skipped for user=%s role=%s — DISCORD_SERVER_ID or the "
+                "role id is not configured.", discord_user_id, role_id,
+            )
+        return False
+
+    url = f"{DISCORD_API_BASE}/guilds/{settings.discord_server_id}/members/{discord_user_id}/roles/{role_id}"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.put(url, headers={**headers, "X-Audit-Log-Reason": reason})
+        if resp.status_code in (204, 404):
+            return True
+        logger.warning(
+            "Discord role grant failed for user=%s role=%s: HTTP %s %s",
+            discord_user_id, role_id, resp.status_code, resp.text[:300],
+        )
+        return False
+    except httpx.HTTPError as e:
+        logger.warning("Discord role grant request failed for user=%s role=%s: %s", discord_user_id, role_id, e)
+        return False
+
+
 async def send_dm(discord_user_id: str, content: str) -> bool:
     """Best-effort DM. Discord requires opening/reusing a DM channel first,
     then posting to it — two calls, both logged (not raised) on failure,

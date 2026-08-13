@@ -1,15 +1,28 @@
 """canonical schema reconciling profiles connections projects orgs resources messages events language and privacy tables
 
 Revision ID: ee6e2dd287ad
-Revises: 
+Revises:
 Create Date: 2026-08-12 02:39:01.592897
 
+Edited 13-Aug-2026 production audit: this migration originally created
+`profiles.embedding` via `pgvector.sqlalchemy.Vector(dim=384)`, which the
+very next migration (a7b8c9d0e1f2) immediately drops — the embeddings
+feature was never built (see that migration's docstring). Keeping a real
+`import pgvector.sqlalchemy` here meant `alembic upgrade head` on a fresh
+database required installing the pgvector package purely to create a
+column that gets dropped one migration later, and requirements.txt no
+longer installs it (removed as genuinely unused). Running `alembic upgrade
+head` against a clean database crashed with `ModuleNotFoundError:
+No module named 'pgvector'` until this edit — caught by actually running
+the migration during this audit, not just reading the diff. Since this
+hasn't shipped against any real/persistent database yet, the column is
+just removed here rather than carrying a broken dependency forever for a
+table state that never actually exists at the end of `upgrade head`.
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-import pgvector.sqlalchemy
 
 
 # revision identifiers, used by Alembic.
@@ -92,7 +105,6 @@ def upgrade() -> None:
     sa.Column('projects', sa.ARRAY(sa.String()), server_default='{}', nullable=True),
     sa.Column('is_open', sa.Boolean(), server_default='true', nullable=True),
     sa.Column('tagline', sa.String(length=255), nullable=True),
-    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=384), nullable=True),
     sa.Column('vision_2036', sa.Text(), nullable=True),
     sa.Column('mission', sa.Text(), nullable=True),
     sa.Column('badges', sa.ARRAY(sa.String()), server_default='{}', nullable=True),

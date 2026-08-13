@@ -89,6 +89,15 @@ class Settings:
         self.discord_bot_token: str = os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN", "")
         self.discord_server_id: str = os.getenv("DISCORD_SERVER_ID", "")
         self.discord_vetted_role_id: str = os.getenv("VETTED_ROLE_ID", "")
+        # XP tier roles: role_key -> Discord role id, applied by the backend when
+        # a builder crosses an XP level threshold (see services/xp_service.py).
+        # If an id is unset the tier is still RECORDED (a RoleGrant) but the
+        # Discord role isn't applied — that gap is logged, never silently
+        # dropped. Same bot token as above does the applying.
+        self.xp_tier_role_ids: dict = {
+            "tier-contributor": os.getenv("XP_TIER_CONTRIBUTOR_ROLE_ID", ""),
+            "tier-builder": os.getenv("XP_TIER_BUILDER_ROLE_ID", ""),
+        }
         self.discord_bot_configured: bool = bool(self.discord_bot_token)
         if not self.discord_bot_configured:
             logger.warning(

@@ -62,14 +62,19 @@ app.add_middleware(
 
 app.include_router(api_router)
 
-_FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "frontend", "build")
+_FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 if settings.is_production and os.path.isdir(_FRONTEND_BUILD_DIR):
-    # Was "frontend/build" — a path that only resolves correctly if the process's cwd happens
-    # to be the repo root AND a top-level frontend/ directory exists, neither of which is true
-    # here (the frontend lives at src/frontend/, and Dockerfile.backend's WORKDIR is /app with
-    # cwd-independent execution via gunicorn). This never crashed — os.path.isdir() just quietly
-    # returned False and skipped mounting — so it would have shipped as a silent no-op the first
-    # time someone actually tried to serve the frontend from the API container.
+    # Optional third deployment path — the two documented ones (src/frontend/README.md)
+    # are a separate static host (Vercel/Netlify/...) or the nginx container in
+    # Dockerfile.frontend; this lets the API container also serve the frontend
+    # directly if its build output happens to be present alongside it. Was
+    # "frontend/build": (1) cwd-independent via os.path.dirname(__file__), which
+    # was already correct, but (2) still named the wrong directory — Vite (what
+    # actually gets built, not the old CRA scaffold) outputs to "dist", not
+    # "build". Since Dockerfile.backend never COPYs a frontend build into the
+    # image, os.path.isdir() was always False and this silently no-op'd either
+    # way — fixed for correctness so it actually works for anyone who wires up
+    # that combined-container path (13-Aug-2026 production audit).
     app.mount("/", StaticFiles(directory=_FRONTEND_BUILD_DIR, html=True), name="frontend")
 
 

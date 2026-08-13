@@ -71,3 +71,11 @@ export const setIdentified = (discordId, neurotype) =>
     auth: true,
     body: { discord_id: discordId, neurotype },
   });
+
+// ── XP / gamification ──
+
+// Read a builder's XP standing (total, level, progress, unlocked tiers). XP is
+// only ever awarded server-side off real actions — the bot never posts XP, it
+// only reads it for the /xp command.
+export const getXp = (discordId) =>
+  apiFetch(`/api/v1/bot/xp/${encodeURIComponent(discordId)}`, { auth: true });

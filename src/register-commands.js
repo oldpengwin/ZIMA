@@ -10,6 +10,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('quiz')
     .setDescription('Take the Zima typology quiz to find your archetype'),
+  new SlashCommandBuilder()
+    .setName('xp')
+    .setDescription('See your Zima XP, level, and unlocked role tiers'),
 ].map((c) => c.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);

@@ -443,6 +443,42 @@ class QuestCompletion(Base):
     __table_args__ = (UniqueConstraint("discord_id", "quest_key", name="_discord_quest_uc"),)
 
 
+class XpEvent(Base):
+    """Append-only XP ledger for the Discord-facing gamification system.
+
+    One row per awarded event. Idempotent by (discord_id, event_type, ref_id):
+    once-per-user events (onboarding, quiz) use ref_id="" so a second award can
+    never land; repeatable events (e.g. project_created) pass the triggering
+    entity's id as ref_id so each distinct entity awards exactly once. Total XP
+    and level are DERIVED by summing this table (see services/xp_service.py),
+    never stored mutably on the profile — the ledger stays the single source of
+    truth, the same append-don't-mutate principle used by the match-score
+    history and deletion_audit_log above."""
+
+    __tablename__ = "xp_events"
+
+    id = _uuid_pk()
+    discord_id = Column(String(64), nullable=False, index=True)
+    event_type = Column(String(100), nullable=False)
+    ref_id = Column(String(100), nullable=False, default="", server_default="")
+    points = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("discord_id", "event_type", "ref_id", name="_discord_xp_event_uc"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "discord_id": self.discord_id,
+            "event_type": self.event_type,
+            "ref_id": self.ref_id or "",
+            "points": self.points,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 # ─────────────────────────── Derived/cached data (AcousticBrainz-style) ───────────────────────────
 #
 # `profiles` above stays a tightly-typed, hot-path relational table — the

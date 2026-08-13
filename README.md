@@ -134,7 +134,9 @@ Full interactive docs at `/api/docs` once the server is running.
 
 ## License
 
-MIT
+Source-available, all rights reserved — see [LICENSE](LICENSE). The source is
+published for reference; it is **not** an OSI open-source license and does not
+grant reuse or redistribution rights without permission.
 
 ## Status
 

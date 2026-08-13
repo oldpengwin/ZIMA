@@ -132,3 +132,7 @@ src/frontend/src/lib/url.js
 src/services/organization_service.py
 src/frontend/src/pages/Organizations.jsx
 src/frontend/src/pages/Projects.jsx
+docs/DEPLOYMENT.md
+src/services/xp_service.py
+migrations/versions/b2c3d4e5f6a7_xp_events_ledger.py
+tests/backend/test_xp_service.py

@@ -31,8 +31,8 @@ ZIMA/
 ├── src/
 │   ├── index.js, config.js, features/, handlers/, roles/   # Discord bot (discord.js)
 │   ├── api/, core/, database/, db/, services/               # FastAPI backend (Python)
-│   └── frontend/                                            # Web app (React) — in active rebuild
-├── demo/                # Live prototype pages (deployed via Vercel)
+│   └── frontend/                                            # Web app (React + Vite SPA)
+├── demo/                # Older standalone prototype pages
 ├── migrations/           # Alembic schema migrations
 ├── supabase/schema.sql   # Same schema, for a Supabase-hosted Postgres
 ├── scripts/seed_data.py  # Generates a realistic dev/test dataset — not for production use
@@ -43,13 +43,15 @@ ZIMA/
 Alembic for migrations. Matching is deterministic, pure-code scoring — no
 LLM calls in the hot path. **Discord bot**: discord.js, handles onboarding
 and role management, writes into the same database the API reads from.
-**Frontend**: React — currently mid-rebuild against the backend above; the
-`demo/` folder is the current live public preview in the meantime.
+**Frontend**: React (Vite) single-page app in `src/frontend/`, talking to the
+API above via `VITE_API_URL`. (`demo/` holds older standalone prototype pages.)
 
 ## Quick start
 
-Prerequisites: Python 3.11+, Node.js 18+, PostgreSQL 16+ (with the
-`pgvector` and `pgcrypto` extensions available), Docker (optional).
+Prerequisites: Python 3.11+, Node.js 18+, PostgreSQL 16+, Docker (optional).
+No Postgres extensions are required for the Alembic/Docker path — matching is
+pure archetype/skill math, not vector similarity. (The optional
+`supabase/schema.sql` path is separate and does use `vector`/`pgcrypto`.)
 
 ```bash
 git clone https://github.com/oldpengwin/ZIMA.git
@@ -83,12 +85,13 @@ npm install
 npm start
 ```
 
-**Frontend** (currently in active rebuild — see the note above):
+**Frontend** (React + Vite):
 
 ```bash
 cd src/frontend
 npm install
-npm start
+npm run dev      # dev server; proxies /api to localhost:8000
+npm run build    # production build -> src/frontend/dist
 ```
 
 **Or everything at once with Docker:**
@@ -114,6 +117,8 @@ python -m pytest tests/backend/
 | `GET /api/v1/profiles/{id}/roles` | Discord role-grant history |
 | `GET /api/v1/match/{user_id}` · `POST /match/request` · `PUT /match/requests/{id}` | Matching + connection requests |
 | `POST /api/v1/projects` · `GET /projects` · `POST /projects/{id}/join` | Projects |
+| `POST /api/v1/organizations` · `GET /organizations` · `PUT/DELETE /organizations/{id}` | Organizations |
+| `GET /api/v1/profiles/me/xp` · `GET /api/v1/bot/xp/{discord_id}` | XP standing (self / bot) |
 | `GET /api/v1/users/me/export` · `DELETE /users/me` | Data export / right-to-erasure |
 | `GET /api/v1/neurotypes` | The ten archetypes, machine-readable |
 
@@ -121,8 +126,19 @@ Full interactive docs at `/api/docs` once the server is running.
 
 ## Discord bot
 
-- `/setup-onboarding` — posts the onboarding flow in a channel
+Register slash commands once (and again whenever they change):
+
+```bash
+npm run register-commands
+```
+
+- `/setup-onboarding` — posts the onboarding flow in a channel (admin only)
+- `/quiz` — take the typology quiz to find your archetype
+- `/xp` — see your XP, level, and unlocked role tiers
 - Completing onboarding grants the **Vetted** role automatically
+- XP is awarded server-side for onboarding, quiz completion, first project
+  join, and project creation; crossing a level threshold unlocks a role tier
+  (see `docs/DEPLOYMENT.md` for the `XP_TIER_*_ROLE_ID` config)
 
 ## Contributing
 
@@ -140,5 +156,8 @@ grant reuse or redistribution rights without permission.
 
 ## Status
 
-Backend and data layer are in active use and under test. The web frontend
-is mid-rebuild; `demo/` is the current live preview.
+Backend and data layer are in active use and under test (86 backend tests,
+run against a real Postgres). The React (Vite) frontend in `src/frontend/` is
+built against the API; deploying it publicly is left to the operator — point
+`VITE_API_URL` at your API. See **`docs/DEPLOYMENT.md`** for the full stand-it-up
+guide (Discord app setup, env vars, migrations, slash-command registration).

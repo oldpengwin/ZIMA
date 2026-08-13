@@ -79,3 +79,19 @@ export const setIdentified = (discordId, neurotype) =>
 // only reads it for the /xp command.
 export const getXp = (discordId) =>
   apiFetch(`/api/v1/bot/xp/${encodeURIComponent(discordId)}`, { auth: true });
+
+// ── Social: matches, connections, projects ──
+
+export const getMatches = (discordId, limit = 5) =>
+  apiFetch(`/api/v1/bot/matches/${encodeURIComponent(discordId)}?limit=${limit}`, { auth: true });
+
+export const connectBuilders = ({ fromDiscordId, toDiscordId, message = '' }) =>
+  apiFetch('/api/v1/bot/connect', {
+    method: 'POST',
+    auth: true,
+    body: { from_discord_id: fromDiscordId, to_discord_id: toDiscordId, message },
+  });
+
+// Public projects directory — same read the web uses, no auth required.
+export const listProjects = (limit = 10) =>
+  apiFetch(`/api/v1/projects?limit=${limit}`);

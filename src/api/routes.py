@@ -250,6 +250,10 @@ async def create_profile(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Profile already exists for this account")
     profile_data["discord_id"] = current_user.discord_id
     profile_data.setdefault("discord_username", current_user.username)
+    # Archetype is earned via the quiz (assessed) or the self-identify endpoint,
+    # never self-set at signup — strip it here so a user can't POST a profile
+    # with a chosen neurotype and skip the quiz that matching is built on.
+    profile_data.pop("neurotype", None)
     try:
         profile = profile_service.create_profile(db, profile_data)
     except profile_service.InvalidProfileDataError as e:
@@ -897,6 +901,76 @@ async def bot_get_xp(
     an in-Discord `/xp` command. Guarded by X-Bot-Key. Read-only — XP is only
     ever awarded server-side off real actions, never by anything the bot posts."""
     return xp_service.get_summary(db, discord_id)
+
+
+@router.get("/bot/matches/{discord_id}", response_model=Dict[str, Any])
+async def bot_get_matches(
+    discord_id: str,
+    limit: int = Query(5, ge=1, le=10),
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: a builder's top neurotype matches for the
+    `/matches` command, enriched with public display fields (display_name,
+    neurotype, tagline, score) — never discord_id. Guarded by X-Bot-Key."""
+    profile = profile_service.get_profile_by_discord_id(db, discord_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile for that discord_id (onboard first)")
+    try:
+        result = matching_service.find_matches(db, str(profile.id), limit)
+    except matching_service.MatchingError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    enriched = []
+    for m in result.get("matches", []):
+        p = profile_service.get_profile_by_id(db, str(m["profile_id"]))
+        if not p:
+            continue
+        score = m.get("score")
+        total = score.get("total") if isinstance(score, dict) else score
+        enriched.append({
+            "profile_id": str(m["profile_id"]),
+            "display_name": p.display_name,
+            "neurotype": p.neurotype,
+            "tagline": p.tagline,
+            "score": total,
+        })
+    return {"matches": enriched, "count": len(enriched)}
+
+
+@router.post("/bot/connect", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def bot_connect(
+    body: Dict[str, Any],
+    _bot: None = Depends(require_bot_service),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Discord bot service path: create a connection request from one Discord
+    user to another, by discord_id, for the `/connect` command. Both must have
+    ZIMA profiles; the target is DM'd best-effort. Guarded by X-Bot-Key."""
+    from_discord_id = body.get("from_discord_id")
+    to_discord_id = body.get("to_discord_id")
+    if not from_discord_id or not to_discord_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_discord_id and to_discord_id are required")
+    if str(from_discord_id) == str(to_discord_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can't connect to yourself")
+    from_profile = profile_service.get_profile_by_discord_id(db, str(from_discord_id))
+    to_profile = profile_service.get_profile_by_discord_id(db, str(to_discord_id))
+    if not from_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You need a ZIMA profile first — onboard on the server.")
+    if not to_profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="That builder isn't on ZIMA yet.")
+    message = str(body.get("message") or "")[:500]
+    try:
+        conn = connection_service.create_connection(db, str(from_profile.id), str(to_profile.id), message)
+    except connection_service.DuplicateConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except connection_service.ConnectionServiceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    await _notify_discord_best_effort(
+        to_profile.discord_id,
+        f"**{from_profile.display_name}** wants to connect on ZIMA: \"{conn.message or 'Let’s build something.'}\"\n"
+        f"Reply on the platform to accept or decline.",
+    )
+    return {"status": "sent", "connection": conn.to_dict()}
 
 
 @router.put("/profiles/{profile_id}/identified-neurotype", response_model=Dict[str, Any])

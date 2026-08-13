@@ -27,7 +27,6 @@ UPDATABLE_FIELDS = {
     "skills",
     "bio",
     "links",
-    "neurotype",
     "offering",
     "looking_for",
     "projects",
@@ -231,9 +230,11 @@ def update_profile(db: Session, profile_id: str, updates: Dict[str, Any]) -> Pro
     if not profile:
         raise ProfileNotFoundError(f"Profile {profile_id} not found")
 
-    if "neurotype" in updates:
-        _validate_neurotype(updates["neurotype"])
-
+    # `neurotype` is deliberately NOT directly updatable here: it is the
+    # matching-relevant archetype and must come from the quiz (assessed) or the
+    # self-identify endpoint (identified), never a raw profile PUT — otherwise a
+    # user could set any archetype without taking the quiz and game matching.
+    # See quiz_service.submit_quiz / set_identified_neurotype.
     applied = {}
     for field, value in updates.items():
         if field not in UPDATABLE_FIELDS:
